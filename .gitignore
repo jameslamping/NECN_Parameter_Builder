@@ -1,0 +1,26 @@
+# Outputs and caches
+output/
+cache/
+*.log
+
+# Files the app and run_headless.R write (reports, tables, configs, initial communities)
+LAI_report_*.html
+NECN_builder_report_*.html
+NECN_builder_report_*.pdf
+NECN_species_*.csv
+LAI_parameters_*.csv
+light_curves_*.csv
+plot_LAI_*.csv
+IC_*.csv
+IC_*_map.tif
+necn_builder_config_*.yml
+config_used_*.yml
+
+# Personal settings (copy config_example.yml to config_local.yml)
+config_local.yml
+
+# R and OS files
+.Rhistory
+.RData
+.Rproj.user/
+.DS_Store

@@ -1,0 +1,62 @@
+# NECN Parameter Builder -- configuration template.
+# Copy to config_local.yml (ignored by git), fill in your paths, and run:  Rscript run_headless.R config_local.yml
+fia_dir: "path/to/FIADB_csv_folder"       # holds WA_TREE.csv, WA_PLOT.csv, WA_COND.csv, WA_SEEDLING.csv, ...
+states: [WA, OR]
+cache_dir: cache
+# plot selection
+forest_min: 0.9          # minimum forested share of the plot
+annual_only: true        # annual inventory plots only
+min_year: 2000
+exclude_disturbed: false # drop plots with a recorded disturbance or treatment
+region_file: null        # optional polygon (shp/gpkg/geojson) of the study area
+buffer_km: 0
+# species
+species_file: "path/to/NECN_species_table.csv"
+necn_table:   "path/to/NECN_species_table.csv"
+species_overrides: null  # optional csv: LandisName, SPCD (e.g. "747" or "741,747")
+sla_overrides: null      # optional csv: SPCD, sla, source
+# fitting
+dom_min: 0.8             # plot counts as monospecific when the species holds this share of live wood
+plateau_top: 0.2         # MaximumLAI from the largest 20% of stands ...
+plateau_q: 0.9           # ... at this LAI quantile
+max_cap: 20              # NECN input limit
+min_n: 12                # fewer monospecific plots than this: no estimate
+nboot: 200
+seed: 1
+choices_file: null       # optional csv: LandisName, MaxLAI_use, KLAI_use, borrow_from, note
+# export
+mode: ""                 # REQUIRED -- which NECN you run:
+                         #   stand_level : NECN with the stand-level site LAI change (values exported as fitted)
+                         #   current_code: NECN 8.3 and earlier, site LAI = sum of cohort LAI (export adds the growth-neutral rescale)
+rescale_f: 0.47
+out_dir: output
+# added in v0.2
+share_min: 0.3           # mixed-plot fit: plots where the species holds at least this share of live wood
+n0: 30                   # group pooling: prior strength in plots (species weight = n / (n + n0))
+sla_softwood: 5          # generic SLA when no species or genus value is available
+sla_hardwood: 12
+download: false          # true: download missing state tables into fia_dir first
+download_method: rFIA    # rFIA or direct (FIA DataMart zip files)
+# added in v0.3: establishment light curves (needs <ST>_SEEDLING.csv in fia_dir)
+light_fit: true
+light_scale: null        # null = same as mode (recommended); or current_code, stand_level, observed
+age_dir: ""              # optional folder of Lu et al. (2025) <ST>_TREEAGE.csv tree ages; else TOTAGE ~ DIA + HT models
+seed_source: plot        # plot (seed tree on the plot), radius (species within seed_radius_km), none
+seed_min_dia: 5          # inches
+seed_radius_km: 5
+light_min_pres: 20       # minimum plots with seedlings for a fit
+light_normalize: true    # scale curves to peak at 1
+light_bare: lai05        # bare ground (site LAI 0): lai05 = at least the curve value at LAI 0.5 (recommended); fit = as fitted
+light_choices_file: null # optional csv: LandisName, use (fit/current/flat), borrow_from, p0_use (bare-ground probability), note
+# added in v0.4: initial communities from TreeMap 2022 (uses fia_dir/states, species matches and age_dir above)
+ic_build: false
+ic_only: false           # true: build only the initial communities (skip the LAI and light-curve fits)
+ic_template: "path/to/ecoregions_map.tif"
+treemap_raster: "path/to/TreeMap_CONUS_2022.tif"
+treemap_table: null      # only needed if the raster has no attribute table (TM_ID, PLT_CN)
+ic_species_file: ""         # optional LANDIS species .txt (caps ages below Longevity)
+ic_resample: near        # near (default; unbiased area shares) or mode (majority)
+ic_codes: tm_id          # tm_id (map code = TreeMap ID) or renumber (2..N, 1 = empty)
+ic_empty_code: 1         # map code for active cells with no trees (no CSV rows -> start empty)
+ic_min_biomass: 1        # drop cohorts below this (g/m2)
+report_pdf: true         # also write the report as PDF (needs Chrome, Chromium or Edge; set NECN_CHROME if not found)

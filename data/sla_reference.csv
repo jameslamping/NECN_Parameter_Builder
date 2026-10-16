@@ -1,0 +1,34 @@
+scientific_name,sla_m2_per_kg,n,source,notes
+Acer circinatum,34.161,4,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 689 cm2 HSA/gC x 49.58% leaf C
+Acer macrophyllum,19.265,4,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 406 cm2 HSA/gC x 47.45% leaf C
+Alnus rubra,16.636,9,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 326 cm2 HSA/gC x 51.03% leaf C
+Arbutus menziesii,7.992,16,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 168 cm2 HSA/gC x 47.57% leaf C
+Chrysolepis chrysophylla,6.818,4,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 137 cm2 HSA/gC x 49.77% leaf C
+Frangula purshiana,23.278,1,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 488 cm2 HSA/gC x 47.7% leaf C
+Lithocarpus densiflorus,6.989,5,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 162 cm2 HSA/gC x 43.14% leaf C
+Notholithocarpus densiflorus,6.989,5,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 162 cm2 HSA/gC x 43.14% leaf C
+Quercus chrysolepis,5.623,7,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 130 cm2 HSA/gC x 43.25% leaf C
+Quercus garryana,27.255,3,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 586 cm2 HSA/gC x 46.51% leaf C
+Quercus kelloggii,11.84,7,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 260 cm2 HSA/gC x 45.54% leaf C
+Abies amabilis,4.535,25,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 87 cm2 HSA/gC x 52.13% leaf C
+Abies concolor,4.904,89,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 102 cm2 HSA/gC x 48.08% leaf C
+Abies grandis,4.447,102,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 91 cm2 HSA/gC x 48.87% leaf C
+Abies lasiocarpa,4.958,7,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 98 cm2 HSA/gC x 50.59% leaf C
+Abies magnifica,3.569,11,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 73 cm2 HSA/gC x 48.89% leaf C
+Abies procera,3.724,22,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 72 cm2 HSA/gC x 51.72% leaf C
+Calocedrus decurrens,3.939,18,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 82 cm2 HSA/gC x 48.04% leaf C
+Juniperus occidentalis,3.127,68,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 64 cm2 HSA/gC x 48.86% leaf C
+Larix occidentalis,14.254,10,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 309 cm2 HSA/gC x 46.13% leaf C
+Picea engelmannii,4.701,11,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 94 cm2 HSA/gC x 50.01% leaf C
+Picea sitchensis,7.317,27,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 138 cm2 HSA/gC x 53.02% leaf C
+Pinus contorta,4.155,40,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 83 cm2 HSA/gC x 50.06% leaf C
+Pinus flexilis,5.66,3,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 107 cm2 HSA/gC x 52.9% leaf C
+Pinus jeffreyi,4.46,45,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 90 cm2 HSA/gC x 49.56% leaf C
+Pinus lambertiana,4.906,6,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 103 cm2 HSA/gC x 47.63% leaf C
+Pinus monticola,5.223,11,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 103 cm2 HSA/gC x 50.71% leaf C
+Pinus ponderosa,4.112,267,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 81 cm2 HSA/gC x 50.77% leaf C
+Pseudotsuga menziesii,6.117,310,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 119 cm2 HSA/gC x 51.4% leaf C
+Thuja plicata,4.848,3,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 95 cm2 HSA/gC x 51.03% leaf C
+Tsuga heterophylla,9.229,82,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 175 cm2 HSA/gC x 52.74% leaf C
+Tsuga mertensiana,9.818,3,"Berner & Law 2016, Sci Data 3:160002, Table 2 (OR/N. CA)",converted from 193 cm2 HSA/gC x 50.87% leaf C
+Populus tremuloides,17.42,27,"Bond-Lamberty, Wang & Gower 2002, Tree Physiology 22:993",boreal Manitoba; projected area
