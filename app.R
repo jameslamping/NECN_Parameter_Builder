@@ -261,7 +261,7 @@ ui <- page_navbar(
           nav_panel("Through time", uiOutput("chk_time_ui")),
           nav_panel("Cohort biomass by age", help_text("Biomass of each species' cohorts by cohort age (species x 10-year age class on a cell or plot, built like the initial communities), LANDIS against FIA cohorts near the landscape. This is each species' growth curve: it tests MaximumANPP and KLAI (young-cohort growth) and, at older ages, mortality and longevity."),
                     uiOutput("chk_coh_ui"), uiOutput("chk_cohage_ui")),
-          nav_panel("Composition", plotOutput("chk_fig_comp", height = "380px")),
+          nav_panel("Composition", uiOutput("chk_comp_ui")),
           nav_panel("By site LAI", help_text("Regeneration rate in each site-LAI class: LANDIS cells with young cohorts against FIA plots with young trees and with seedlings. Compare shapes (cells are larger than FIA plots, so levels differ). Below: site LAI across the landscape through time against FIA plots."),
                     uiOutput("chk_lai_ui"), plotOutput("chk_fig_lsl", height = "300px")),
           nav_panel("Establishment log", help_text("New cohorts per year by reproduction type from NECN-reproduction-log.csv: seed, resprout, serotiny."), uiOutput("chk_log_ui")))))),
@@ -729,7 +729,8 @@ server <- function(input, output, session) {
     })
   })
   chk_cmp <- reactive({ req(rv$chk); compare_regen(rv$chk$lr, rv$chk$fr, input$chk_window) })
-  chk_species <- reactive({ chk_cmp()[seq_len(min(.N, 9)), LandisName] })
+  chk_species <- reactive({ req(rv$chk); landscape_species(rv$chk$lr, chk_cmp()) })
+  chk_h <- function(per_row = 210) sprintf("%dpx", chk_fig_height(length(chk_species()), per_row))
   output$vb_chk_cells <- renderText(if (is.null(rv$chk)) "–" else format(rv$chk$lr$n_forest, big.mark = ","))
   output$vb_chk_plots <- renderText(if (is.null(rv$chk)) "–" else sprintf("%s (within %s km)", format(rv$chk$fr$n_plots, big.mark = ","), rv$chk$fr$buffer_km))
   output$vb_chk_years <- renderText(if (is.null(rv$chk)) "–" else sprintf("%d (%d–%d)", length(rv$chk$lr$years), min(rv$chk$lr$years), max(rv$chk$lr$years)))
@@ -747,18 +748,19 @@ server <- function(input, output, session) {
         c("within the FIA range", "somewhat low", "somewhat high", "too little in LANDIS", "too much in LANDIS", "LANDIS regenerates; FIA has almost none", "little regeneration in either"),
         c("#e8f5e9", "#fff3cd", "#fff3cd", "#f8d7da", "#f8d7da", "#fde2cf", "transparent")))
   })
-  output$chk_time_ui <- renderUI(plotOutput("chk_fig_time", height = "640px"))
-  output$chk_fig_time <- renderPlot(fig_regen_time(rv$chk$lr, chk_cmp()))
+  output$chk_time_ui <- renderUI(plotOutput("chk_fig_time", height = chk_h()))
+  output$chk_fig_time <- renderPlot(fig_regen_time(rv$chk$lr, chk_cmp(), chk_species()))
   output$chk_fig_comp <- renderPlot(fig_regen_composition(chk_cmp()))
+  output$chk_comp_ui <- renderUI(plotOutput("chk_fig_comp", height = sprintf("%dpx", 140 + 30 * nrow(chk_cmp()))))
   chk_cohorts <- reactive({ req(rv$chk); cohort_biomass_by_age(rv$chk$lr, rv$chk$fr, input$chk_window) })
-  output$chk_coh_ui <- renderUI(plotOutput("chk_fig_coh", height = "640px"))
+  output$chk_coh_ui <- renderUI(plotOutput("chk_fig_coh", height = chk_h()))
   output$chk_fig_coh <- renderPlot(fig_cohort_biomass(chk_cohorts(), chk_species()))
-  output$chk_cohage_ui <- renderUI(plotOutput("chk_fig_cohage", height = "560px"))
+  output$chk_cohage_ui <- renderUI(plotOutput("chk_fig_cohage", height = chk_h(190)))
   output$chk_fig_cohage <- renderPlot(fig_cohort_ages(chk_cohorts(), chk_species()))
-  output$chk_lai_ui <- renderUI(plotOutput("chk_fig_lai", height = "620px"))
+  output$chk_lai_ui <- renderUI(plotOutput("chk_fig_lai", height = chk_h()))
   output$chk_fig_lai <- renderPlot({ req(rv$chk); fig_regen_lai(rv$chk$lr, rv$chk$fr, input$chk_window, chk_species()) })
   output$chk_fig_lsl <- renderPlot({ req(rv$chk); fig_landscape_lai(rv$chk$lr, rv$chk$fr) })
-  output$chk_log_ui <- renderUI(plotOutput("chk_fig_log", height = "620px"))
+  output$chk_log_ui <- renderUI(plotOutput("chk_fig_log", height = chk_h(190)))
   output$chk_fig_log <- renderPlot({ req(rv$chk$rl); fig_establish_log(rv$chk$rl, chk_species()) })
   output$dl_chk <- downloadHandler(function() sprintf("LANDIS_regeneration_check_%s.csv", stamp()), function(file) {
     x <- chk_cmp(); x[, `:=`(run = rv$chk$run$dir, window = paste(input$chk_window, collapse = "-"), regen_age = input$chk_age, fia_buffer_km = input$chk_buffer)]

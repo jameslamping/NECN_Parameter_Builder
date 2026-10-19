@@ -204,8 +204,11 @@ fig_regen_compare <- function(cmp, top = Inf) {
 }
 
 #' LANDIS young biomass through time with the FIA mean and interval
-fig_regen_time <- function(lr, cmp, top = 9) {
-  sp <- cmp[seq_len(min(.N, top)), LandisName]
+#' Facet columns and plot height (inches or pixels per row) for one panel per species
+chk_ncol <- function(n) min(5, max(1, ceiling(sqrt(n))))
+chk_fig_height <- function(n, per_row = 210, extra = 150) extra + per_row * ceiling(max(n, 1) / chk_ncol(n))
+
+fig_regen_time <- function(lr, cmp, sp = cmp$LandisName) {
   d <- lr$regen[SpeciesName %in% sp][, LandisName := factor(SpeciesName, levels = sp)]
   f <- cmp[LandisName %in% sp][, LandisName := factor(LandisName, levels = sp)]
   ggplot2::ggplot() +
@@ -214,22 +217,21 @@ fig_regen_time <- function(lr, cmp, top = 9) {
     ggplot2::geom_vline(xintercept = lr$regen_age, colour = "grey55", linetype = "13") +
     ggplot2::geom_line(data = d, ggplot2::aes(year, young_Mgha), colour = REGEN_COL[["LANDIS"]], linewidth = 0.9) +
     ggplot2::geom_point(data = d, ggplot2::aes(year, young_Mgha), colour = REGEN_COL[["LANDIS"]], size = 1) +
-    ggplot2::facet_wrap(~LandisName, scales = "free_y") + ggplot2::coord_cartesian(ylim = c(0, NA)) +
+    ggplot2::facet_wrap(~LandisName, scales = "free_y", ncol = chk_ncol(length(sp)), drop = FALSE) + ggplot2::coord_cartesian(ylim = c(0, NA)) +
     ggplot2::labs(x = "Simulation year", y = "Young biomass (Mg/ha)",
                   caption = sprintf("Blue: LANDIS (cohorts <= %d yr, cells forested at year 0). Grey band: FIA mean (dashed) and 90%% interval. Dotted line: year %d,\nafter which all young cohorts were established in the simulation rather than in the initial communities.", lr$regen_age, lr$regen_age)) +
     theme_builder(10)
 }
 
 #' Species shares of young biomass
-fig_regen_composition <- function(cmp, top = 10) {
-  x <- data.table::copy(cmp)[order(-pmax(fia_share, landis_share))]
-  keep <- x[seq_len(min(.N, top)), LandisName]
-  x[, sp := data.table::fifelse(LandisName %in% keep, LandisName, "Other")]
-  d <- rbind(x[, .(share = sum(fia_share)), by = sp][, src := "FIA plots"], x[, .(share = sum(landis_share)), by = sp][, src := "LANDIS cells"])
-  d[, sp := factor(sp, levels = c(keep, "Other"))]
-  ggplot2::ggplot(d, ggplot2::aes(src, 100 * share, fill = sp)) + ggplot2::geom_col(width = 0.6) +
-    ggplot2::scale_fill_manual(NULL, values = c(scales::hue_pal(l = 55, c = 70)(length(keep)), "grey80")) +
-    ggplot2::coord_flip() + ggplot2::labs(x = NULL, y = "Share of young biomass (%)") + theme_builder(11) + ggplot2::theme(legend.position = "right")
+fig_regen_composition <- function(cmp, top = Inf) {
+  x <- data.table::copy(cmp)[fia_share > 0 | landis_share > 0][order(-pmax(fia_share, landis_share))][seq_len(min(.N, top))]
+  d <- rbind(x[, .(LandisName, share = fia_share, src = "FIA")], x[, .(LandisName, share = landis_share, src = "LANDIS")])
+  d[, LandisName := factor(LandisName, levels = rev(x$LandisName))]
+  ggplot2::ggplot(d, ggplot2::aes(100 * share, LandisName, fill = src)) +
+    ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.75), width = 0.7) +
+    ggplot2::scale_fill_manual(NULL, values = REGEN_COL, labels = c(FIA = "FIA plots", LANDIS = "LANDIS cells")) +
+    ggplot2::labs(x = "Share of young biomass (%)", y = NULL) + theme_builder(11) + ggplot2::theme(legend.position = "top")
 }
 
 #' Regeneration rate by site LAI: share of LANDIS cells / FIA plots in each LAI class with young cohorts or trees
@@ -246,7 +248,7 @@ fig_regen_lai <- function(lr, fr, window, sp, cap = 16, min_plots = 15) {
   d[, LandisName := factor(LandisName, levels = sp)]
   ggplot2::ggplot(d, ggplot2::aes(lai, 100 * rate, colour = src)) + ggplot2::geom_line(linewidth = 0.8) + ggplot2::geom_point(size = 0.9) +
     ggplot2::scale_colour_manual(NULL, values = c("LANDIS cells with young cohorts" = REGEN_COL[["LANDIS"]], "FIA plots with young trees" = "grey15", "FIA plots with seedlings" = "#1baf7a")) +
-    ggplot2::facet_wrap(~LandisName, scales = "free_y") + ggplot2::coord_cartesian(ylim = c(0, NA)) +
+    ggplot2::facet_wrap(~LandisName, scales = "free_y", ncol = chk_ncol(length(sp)), drop = FALSE) + ggplot2::coord_cartesian(ylim = c(0, NA)) +
     ggplot2::labs(x = sprintf("Site LAI (NECN, whole numbers; %d+ grouped)", cap), y = "% of cells / plots in the LAI class",
                   caption = sprintf("LANDIS: the run's LAI maps, years %d-%d. FIA: site LAI the run's MaximumLAI / KLAI give on each plot; classes with < %d plots dropped.\nCompare the shapes: where LANDIS rises under dense canopy and FIA falls, establishment there is too easy (light curves).", window[1], window[2], min_plots)) +
     theme_builder(10) + ggplot2::theme(legend.position = "top")
@@ -272,7 +274,7 @@ fig_establish_log <- function(rl, sp) {
   d <- rl[SpeciesName %in% sp][, SpeciesName := factor(SpeciesName, levels = sp)]
   ggplot2::ggplot(d, ggplot2::aes(Time, per_1000_cells, colour = type)) + ggplot2::geom_line(linewidth = 0.7) +
     ggplot2::scale_colour_manual(NULL, values = c(Seed = "#2a78d6", Resprout = "#eb6834", Serotiny = "#4a3aa7", Planting = "grey40")) +
-    ggplot2::facet_wrap(~SpeciesName, scales = "free_y") +
+    ggplot2::facet_wrap(~SpeciesName, scales = "free_y", ncol = chk_ncol(length(sp)), drop = FALSE) +
     ggplot2::labs(x = "Simulation year", y = "New cohorts per 1,000 forested cells", caption = "NECN-reproduction-log.csv (whole landscape).") +
     theme_builder(10) + ggplot2::theme(legend.position = "top")
 }
@@ -285,7 +287,7 @@ fig_cohort_biomass <- function(cb, sp, max_age = 400) {
     ggplot2::geom_line(linewidth = 0.9) + ggplot2::geom_point(size = 1) +
     ggplot2::scale_colour_manual(NULL, values = REGEN_COL, labels = c(FIA = "FIA cohorts near the landscape", LANDIS = "LANDIS cohorts")) +
     ggplot2::scale_fill_manual(NULL, values = REGEN_COL, labels = c(FIA = "FIA cohorts near the landscape", LANDIS = "LANDIS cohorts")) +
-    ggplot2::facet_wrap(~LandisName, scales = "free_y") + ggplot2::coord_cartesian(ylim = c(0, NA)) +
+    ggplot2::facet_wrap(~LandisName, scales = "free_y", ncol = chk_ncol(length(sp)), drop = FALSE) + ggplot2::coord_cartesian(ylim = c(0, NA)) +
     ggplot2::labs(x = "Cohort age (10-year classes)", y = "Cohort biomass (Mg/ha, leaf + wood)",
                   caption = sprintf(paste0("Cohort = one species' trees in one 10-year age class on a cell (LANDIS) or plot (FIA), as the initial communities are built. ",
                                            "Lines: median; bands: 25th-75th percentile of cohorts that exist.\nLANDIS: years %d-%d pooled. FIA: tree ages from Lu et al. or the age models; classes with < %d FIA cohorts dropped. ",
@@ -298,7 +300,7 @@ fig_cohort_ages <- function(cb, sp, max_age = 400) {
   d <- cb$table[LandisName %in% sp & cls <= max_age][, share := n / sum(n), by = .(LandisName, source)][, LandisName := factor(LandisName, levels = sp)]
   ggplot2::ggplot(d, ggplot2::aes(cls, 100 * share, colour = source)) + ggplot2::geom_line(linewidth = 0.8) +
     ggplot2::scale_colour_manual(NULL, values = REGEN_COL, labels = c(FIA = "FIA cohorts", LANDIS = "LANDIS cohorts")) +
-    ggplot2::facet_wrap(~LandisName, scales = "free_y") +
+    ggplot2::facet_wrap(~LandisName, scales = "free_y", ncol = chk_ncol(length(sp)), drop = FALSE) +
     ggplot2::labs(x = "Cohort age (10-year classes)", y = "% of the species' cohorts",
                   caption = "Age structure of each species' cohorts. FIA classes with too few cohorts are dropped, so FIA shares are of the classes shown.") +
     theme_builder(10) + ggplot2::theme(legend.position = "top")

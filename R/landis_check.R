@@ -52,7 +52,7 @@ landis_regen <- function(run, years, regen_age = 20, progress = function(msg, va
     full <- rd(t)[MapCode %in% forest]
     d <- full[CohortAge <= regen_age]
     # cohorts grouped like the initial communities (species x 10-year class per cell); their biomass kept as a
-    # histogram of log10(Mg/ha) in 0.05 steps so quantiles can be pooled over years without keeping every cohort
+    # histogram of log10(Mg/ha) in 0.01 steps so quantiles can be pooled over years without keeping every cohort
     cb <- full[, .(B = sum(as.numeric(CohortBiomass)) / 100), by = .(MapCode, SpeciesName, cls = cohort_class(CohortAge))][B > 0]
     coh_h[[i]] <- cb[, .N, by = .(SpeciesName, cls, lb = round(log10(B) / 0.01) * 0.01)][, year := t]
     out[[i]] <- d[, .(cells_young = data.table::uniqueN(MapCode), young_gm2_sum = sum(as.numeric(CohortBiomass))), by = SpeciesName][, year := t]
@@ -162,6 +162,12 @@ compare_regen <- function(lr, fr, window, nboot = 500, seed = 1) {
     default = "within the FIA range")]
   x[, `:=`(fia_share = fia_Mgha / sum(fia_Mgha), landis_share = landis_Mgha / sum(landis_Mgha))]
   x[order(-pmax(fia_Mgha, landis_Mgha))]
+}
+
+#' Species present anywhere on the LANDIS landscape in the years read, in the comparison table's order
+landscape_species <- function(lr, cmp) {
+  sp <- unique(lr$coh_hist$SpeciesName)
+  c(intersect(cmp$LandisName, sp), sort(setdiff(sp, cmp$LandisName)))
 }
 
 #' New cohorts per year from NECN-reproduction-log.csv, per 1,000 forested cells

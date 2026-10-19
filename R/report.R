@@ -171,7 +171,7 @@ write_report_pdf <- function(s, pdf_path, html_path = sub("\\.pdf$", ".html", pd
 
 .chk_section <- function(k) {
   cmp <- k$cmp; w <- k$window
-  sp <- cmp[seq_len(min(.N, 9)), LandisName]
+  sp <- landscape_species(k$lr, cmp); hh <- chk_fig_height(length(sp), 2.1, 1.4)
   htmltools::tagList(
     htmltools::h2("Check: regeneration in a LANDIS run against FIA"),
     htmltools::div(class = "box", htmltools::HTML(sprintf(paste0(
@@ -185,12 +185,10 @@ write_report_pdf <- function(s, pdf_path, html_path = sub("\\.pdf$", ".html", pd
                       LANDIS_Mgha = round(landis_Mgha, 3), Ratio = round(ratio, 2), FIA_pct_plots = round(fia_pct_plots, 1), LANDIS_pct_cells = round(landis_pct_cells, 1),
                       FIA_where_present = round(fia_Mgha_where_present, 2), LANDIS_where_present = round(landis_Mgha_where_present, 2))], 3),
     htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_compare(cmp), 11, min(14, 2 + 0.3 * nrow(cmp)))),
-    htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_time(k$lr, cmp), 11, 7)),
-    if (!is.null(k$cohorts)) htmltools::tagList(
-      htmltools::h3("Cohort biomass by cohort age"),
-      htmltools::p(class = "meta", "Each species' growth curve: biomass of its cohorts (species x 10-year age class on a cell or plot) by cohort age. LANDIS above FIA at young ages points to MaximumANPP / KLAI; departures at old ages to mortality and longevity."),
-      htmltools::tags$img(class = "page-fig", src = .png64(fig_cohort_biomass(k$cohorts, sp), 11, 7))),
+    htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_time(k$lr, cmp, sp), 11, hh)),
+    if (!is.null(k$cohorts)) htmltools::tags$img(class = "page-fig", src = .png64(fig_cohort_biomass(k$cohorts, sp) +
+      ggplot2::labs(title = "Cohort biomass by cohort age", subtitle = "Each species' growth curve. LANDIS above FIA at young ages points to MaximumANPP / KLAI; departures at old ages to mortality and longevity."), 11, hh + 0.5)),
     if (!is.null(k$fr$plot_lai)) htmltools::tagList(
-      htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_lai(k$lr, k$fr, w, sp), 11, 7)),
+      htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_lai(k$lr, k$fr, w, sp), 11, hh)),
       htmltools::tags$img(src = .png64(fig_landscape_lai(k$lr, k$fr), 10, 3.6))))
 }
