@@ -60,3 +60,10 @@ ic_codes: tm_id          # tm_id (map code = TreeMap ID) or renumber (2..N, 1 = 
 ic_empty_code: 1         # map code for active cells with no trees (no CSV rows -> start empty)
 ic_min_biomass: 1        # drop cohorts below this (g/m2)
 report_pdf: true         # also write the report as PDF (needs Chrome, Chromium or Edge; set NECN_CHROME if not found)
+# added in v0.6: check a finished LANDIS run's regeneration against FIA plots around the landscape
+check_run_dir: null      # LANDIS run folder (Scenario.txt, community-input-file-*.csv, output-community-0.tif); null = skip
+check_mode: null         # how the run's NECN computes site LAI: stand_level or current_code (null = mode)
+check_regen_age: 20      # regeneration = cohorts / trees up to this age
+check_every: 5           # read every N years of the run
+check_buffer_km: 25      # FIA plots within this distance of the landscape
+check_window: null       # [first, last] LANDIS years to compare (null = regen_age + 1 to the end)

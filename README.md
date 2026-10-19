@@ -60,6 +60,19 @@ Your NECN has the change if its `CohortBiomass.cs` contains `SiteLAIContribution
    - Outputs: IC map (INT4S GeoTIFF), IC CSV (`MapCode, SpeciesName, CohortAge, CohortBiomass, LeafBiomass, WoodBiomass`), and a map-code crosswalk (TM_ID, PLT_CN, whether the plot was found in FIA, cells, totals, TreeMap's own live biomass for checking).
    - TreeMap plots missing from the loaded FIA tables start empty and are listed. Load the states that hold them.
 
+8. **Check a LANDIS run.** Compares species regeneration in a finished (e.g. historical) NECN run with FIA plots around the landscape.
+   - **Regeneration** = cohorts (LANDIS) or live trees (FIA) up to a set age (default 20 years).
+     - LANDIS: cells forested at year 0, in years after the initial communities' young cohorts have aged out.
+     - FIA: plots within a set distance of the landscape. Trees are aged the same way the initial communities are, and FIA seedlings are reported too.
+   - **Young biomass (Mg/ha)** is the main comparison, because it does not depend on plot or cell size. It is split into how often the species regenerates and how much young biomass it carries where present. A gap in the second, with similar frequencies, points to young-cohort growth (`MaximumANPP`, `KLAI`) rather than establishment.
+   - **Other views:**
+     - young biomass through time against the FIA range;
+     - species composition;
+     - regeneration rate by site LAI: the run's LAI maps against the site LAI the run's species table gives on FIA plots, which tests the light curves;
+     - site LAI across the landscape through time;
+     - the reproduction log by type (seed, resprout, serotiny).
+   - **Needs** Output Biomass Community files (`community-input-file-{t}.csv`) and `output-community-0.tif`. In a script run, set `check_run_dir` in the config.
+
 ## Run
 
 ```r

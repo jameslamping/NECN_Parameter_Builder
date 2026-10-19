@@ -43,7 +43,7 @@ write_report <- function(s, path) {
     .box{-webkit-print-color-adjust:exact;print-color-adjust:exact}}"
   st <- s$settings
   has_fit <- !is.null(s$fit)
-  title <- if (has_fit) "NECN parameters from FIA" else "NECN initial communities from TreeMap"
+  title <- if (has_fit) "NECN parameters from FIA" else if (!is.null(s$ic)) "NECN initial communities from TreeMap" else "LANDIS run check against FIA"
   doc <- htmltools::tags$html(htmltools::tags$head(htmltools::tags$meta(charset = "utf-8"), htmltools::tags$title(title),
                                                    htmltools::tags$style(css)),
     htmltools::tags$body(
@@ -53,7 +53,8 @@ write_report <- function(s, path) {
       if (has_fit) .lai_sections(s, st),
       if (!is.null(s$lfit)) .light_section(s),
       if (!is.null(s$ic)) .ic_section(s$ic),
-      htmltools::h2("Species matching"), .tab_html(s$species_map),
+      if (!is.null(s$chk)) .chk_section(s$chk),
+      if (!is.null(s$species_map)) htmltools::tagList(htmltools::h2("Species matching"), .tab_html(s$species_map)),
       if (!is.null(s$sla_tab)) htmltools::tagList(htmltools::h2("Specific leaf area used"), .tab_html(s$sla_tab[SPCD %in% expand_species_map(s$species_map)$SPCD])),
       htmltools::h2("Settings"), htmltools::tags$pre(yaml::as.yaml(st))
     ))
@@ -166,4 +167,25 @@ write_report_pdf <- function(s, pdf_path, html_path = sub("\\.pdf$", ".html", pd
                            Shape_now = LightLAIShape, Scale_now = LightLAIScale, Location_now = LightLAILocation, Adjust_now = LightLAIAdjust, Note = note)], 3),
     htmltools::p(class = "meta", "Figures: share of seed-source plots with seedlings in equal-count LAI bins (points, 90% intervals). Blue: fitted presence; black dashed: exported light probability; orange: current table."),
     .fig_pages(function(species) fig_light_fit(s$lfit, s$lfinal, species, ls$scale), sort(s$lfit$params[n_plots > 0, LandisName])))
+}
+
+.chk_section <- function(k) {
+  cmp <- k$cmp; w <- k$window
+  sp <- cmp[seq_len(min(.N, 9)), LandisName]
+  htmltools::tagList(
+    htmltools::h2("Check: regeneration in a LANDIS run against FIA"),
+    htmltools::div(class = "box", htmltools::HTML(sprintf(paste0(
+      "Run: %s. Regeneration = cohorts (LANDIS) or live trees (FIA) up to %d years old. LANDIS: %s cells forested at year 0, years %d&ndash;%d. ",
+      "FIA: %s plots within %s km of the landscape, aged with the same source as the initial communities. ",
+      "Young biomass (Mg/ha) does not depend on plot or cell size; frequencies do (a 90 m cell samples far more ground than FIA microplots)."),
+      htmltools::htmlEscape(k$run$dir), k$lr$regen_age, format(k$lr$n_forest, big.mark = ","), w[1], w[2],
+      format(k$fr$n_plots, big.mark = ","), k$fr$buffer_km))),
+    .tab_html(cmp[, .(Species = LandisName, Assessment = assessment, FIA_Mgha = round(fia_Mgha, 3), FIA_lo = round(fia_lo, 3), FIA_hi = round(fia_hi, 3),
+                      LANDIS_Mgha = round(landis_Mgha, 3), Ratio = round(ratio, 2), FIA_pct_plots = round(fia_pct_plots, 1), LANDIS_pct_cells = round(landis_pct_cells, 1),
+                      FIA_where_present = round(fia_Mgha_where_present, 2), LANDIS_where_present = round(landis_Mgha_where_present, 2))], 3),
+    htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_compare(cmp), 11, 6.5)),
+    htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_time(k$lr, cmp), 11, 7)),
+    if (!is.null(k$fr$plot_lai)) htmltools::tagList(
+      htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_lai(k$lr, k$fr, w, sp), 11, 7)),
+      htmltools::tags$img(src = .png64(fig_landscape_lai(k$lr, k$fr), 10, 3.6))))
 }

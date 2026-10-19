@@ -24,3 +24,6 @@ config_local.yml
 .RData
 .Rproj.user/
 .DS_Store
+
+# regeneration check outputs
+LANDIS_regeneration_check_*.csv

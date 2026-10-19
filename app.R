@@ -32,7 +32,8 @@ ui <- page_navbar(
           tags$li(strong("MaximumLAI & KLAI:"), " three estimates per species (monospecific plots, mixed plots, group-pooled) with a recommendation; review, override, and check the site LAI they give on FIA plots."),
           tags$li(strong("Establishment:"), " LightLAI curves (Shape, Scale, Location, Adjust) fitted to FIA seedling presence against site LAI on the scale NECN evaluates it."),
           tags$li(strong("Export:"), " NECN species table for the NECN you run (stand-level site LAI, or 8.3 and earlier with the growth-neutral rescale), parameter table, report, config."),
-          tags$li(strong("Initial communities:"), " IC map and CSV from TreeMap 2022 on your ecoregion map's grid, with cohorts from live FIA trees (needs steps 1 and 2 only).")),
+          tags$li(strong("Initial communities:"), " IC map and CSV from TreeMap 2022 on your ecoregion map's grid, with cohorts from live FIA trees (needs steps 1 and 2 only)."),
+          tags$li(strong("Check a LANDIS run:"), " compare species regeneration in a finished (historical) run with FIA plots around the landscape: young biomass, frequency, composition, and regeneration along site LAI.")),
         help_text("KLAI is the stand wood carbon (g C/m2) at which LAI reaches half of MaximumLAI. It is read from LAI against wood, not age, and it does not depend on SLA.")),
       div(
       step_card("Which NECN will you run?",
@@ -228,6 +229,40 @@ ui <- page_navbar(
             textInput("ic_out", "…or write all three to a folder", ""),
             div(style = "margin-top: 32px", actionButton("ic_write", "Write", class = "btn-outline-primary w-100"))))))),
 
+  nav_panel("8 · Check a LANDIS run",
+    layout_columns(col_widths = c(3, 9),
+      div(
+        step_card("LANDIS run",
+          help_text("Compares regeneration in a finished LANDIS-II NECN run with FIA plots around the landscape. Needs steps 1–2 (FIA tables with SEEDLING, species matches); step 3 adds the site-LAI views."),
+          textInput("chk_dir", "Run folder (holds Scenario.txt, community-input-file-*.csv, output-community-0.tif)", ""),
+          shinyFiles::shinyDirButton("chk_browse", "Browse…", "Select LANDIS run folder", class = "btn-sm btn-outline-secondary mb-2"),
+          uiOutput("chk_run_info"),
+          radioButtons("chk_mode", "How this run's NECN computes site LAI", choices = c(
+            "stand-level (NECN with the stand-level change)" = "stand_level", "sum of cohort LAI (NECN 8.3 and earlier)" = "current_code")),
+          numericInput("chk_age", "Regeneration = cohorts / trees up to this age (years)", 20, 5, 60, 5),
+          numericInput("chk_every", "Read every N years of the run", 5, 1, 20, 1),
+          numericInput("chk_buffer", "FIA plots within this distance of the landscape (km)", 25, 0, 200, 5),
+          help_text("Requires Output Biomass Community output (community-input-file-{t}.csv) and output-community-0.tif. Only cells forested at year 0 count. FIA tree ages come from the same age source as step 5/7 (Lu et al. folder or age models)."),
+          actionButton("chk_go", "Read run and compare", class = "btn-primary w-100")),
+        step_card("Comparison window",
+          sliderInput("chk_window", "LANDIS years to compare", 0, 100, c(25, 100), step = 1),
+          help_text("Default: years after the initial communities' young cohorts have aged out (> the regeneration age), so all regeneration counted was simulated."),
+          downloadButton("dl_chk", "Comparison table (.csv)", class = "w-100"))),
+      div(
+        layout_columns(fill = FALSE,
+          value_box("Forested cells (year 0)", textOutput("vb_chk_cells"), theme = "secondary"),
+          value_box("FIA plots near the landscape", textOutput("vb_chk_plots"), theme = "secondary"),
+          value_box("Years read", textOutput("vb_chk_years"), theme = "primary")),
+        navset_card_tab(full_screen = TRUE,
+          nav_panel("By species", plotOutput("chk_fig_species", height = "620px")),
+          nav_panel("Table", help_text(HTML("<b>Young biomass</b> (leaf + wood of cohorts / trees up to the regeneration age, Mg/ha) is the main comparison: it does not depend on plot or cell size. <b>% plots / cells</b> with young trees: cells sample far more ground than FIA microplots, so cell values run higher for any species. <b>Where present</b> = young biomass ÷ share present: a gap here with similar frequencies points to young-cohort growth (MaximumANPP, KLAI) rather than establishment.")),
+                    DTOutput("chk_tbl")),
+          nav_panel("Through time", uiOutput("chk_time_ui")),
+          nav_panel("Composition", plotOutput("chk_fig_comp", height = "380px")),
+          nav_panel("By site LAI", help_text("Regeneration rate in each site-LAI class: LANDIS cells with young cohorts against FIA plots with young trees and with seedlings. Compare shapes (cells are larger than FIA plots, so levels differ). Below: site LAI across the landscape through time against FIA plots."),
+                    uiOutput("chk_lai_ui"), plotOutput("chk_fig_lsl", height = "300px")),
+          nav_panel("Establishment log", help_text("New cohorts per year by reproduction type from NECN-reproduction-log.csv: seed, resprout, serotiny."), uiOutput("chk_log_ui")))))),
+
   nav_panel("Method",
     card(card_body(
       h4("Observed LAI"), p("Each FIA plot's LAI is the sum over live trees of foliage biomass (FIADB DRYBIO_FOLIAGE, NSVB) x trees per acre x SLA. Wood is DRYBIO_AG (stem, bark and branches). FIADB 9.1 or later is required."),
@@ -246,7 +281,7 @@ server <- function(input, output, session) {
   rv <- reactiveValues(fia = NULL, plots = NULL, region = NULL, necn = NULL, map = NULL, sla = NULL,
                        sla_over = data.table(SPCD = integer(), sla = numeric(), source = character()),
                        lai = NULL, sp_tab = NULL, fit = NULL, choices = NULL, states_refresh = 0,
-                       ic = NULL, cohorts = NULL, lxt = NULL, lfit = NULL, lchoices = NULL, lfit_key = NULL)
+                       ic = NULL, cohorts = NULL, chk = NULL, lxt = NULL, lfit = NULL, lchoices = NULL, lfit_key = NULL)
   vols <- c(Home = path.expand("~"), shinyFiles::getVolumes()())
   shinyFiles::shinyDirChoose(input, "fia_browse", roots = vols, session = session)
   observeEvent(input$fia_browse, {
@@ -651,6 +686,74 @@ server <- function(input, output, session) {
     if (!is.null(f)) showNotification(paste("Wrote", paste(basename(f), collapse = ", ")), type = "message", duration = 8)
   })
 
+  # ---- step 8: check a LANDIS run ----
+  shinyFiles::shinyDirChoose(input, "chk_browse", roots = vols, session = session)
+  observeEvent(input$chk_browse, { p <- shinyFiles::parseDirPath(vols, input$chk_browse); if (length(p)) updateTextInput(session, "chk_dir", value = as.character(p)) })
+  observeEvent(input$mode, if (nzchar(input$mode)) updateRadioButtons(session, "chk_mode", selected = input$mode))
+  chk_run <- reactive({ req(nzchar(input$chk_dir)); tryCatch(read_landis_run(input$chk_dir), error = function(e) NULL) })
+  output$chk_run_info <- renderUI({
+    r <- chk_run(); if (is.null(r)) return(help_text("No LANDIS run found in this folder (needs Scenario.txt)."))
+    help_text(sprintf("%d years; %d community files; %d LAI maps; species table: %s", r$duration, length(r$community_years), length(r$lai_years),
+                      if (is.na(r$species_table)) "not found" else basename(r$species_table)))
+  })
+  observeEvent(list(chk_run(), input$chk_age), {
+    r <- chk_run(); req(r); mx <- max(r$community_years)
+    updateSliderInput(session, "chk_window", min = 0, max = mx, value = c(min(mx, input$chk_age + 1), mx))
+  })
+  observeEvent(input$chk_go, {
+    req(rv$fia, rv$plots, rv$map); r <- chk_run()
+    if (is.null(r)) { showNotification("Point to a LANDIS run folder first.", type = "warning"); return() }
+    withProgress(message = "Checking LANDIS run", value = 0, {
+      ok <- tryCatch({
+        yrs <- unique(c(0, seq(0, max(r$community_years), by = input$chk_every), max(r$community_years)))
+        lr <- landis_regen(r, yrs, input$chk_age, progress = function(m, v) setProgress(0.6 * v, detail = m))
+        setProgress(0.65, detail = "FIA plots near the landscape")
+        pars <- NULL
+        if (!is.na(r$species_table) && file.exists(r$species_table)) {
+          tb <- fread(r$species_table)
+          pars <- tb[, .(LandisName = SpeciesCode, MaximumLAI = as.numeric(MaximumLAI), KLAI = as.numeric(KLAI),
+                         MinLAI = if ("MinLAI" %in% names(tb)) as.numeric(MinLAI) else 0.1)]
+          miss <- setdiff(unique(lr$regen$SpeciesName), rv$map$LandisName)
+          if (length(miss)) showNotification(paste("Run species not in step 2's table (no FIA match):", paste(miss, collapse = ", ")), type = "warning", duration = 12)
+        }
+        if (input$chk_mode == "stand_level" && is.null(rv$sp_tab)) { pars <- NULL; showNotification("Run step 3 to add the site-LAI views.", type = "message") }
+        fr <- fia_regen(rv$fia, rv$plots, landscape_outline(r), input$chk_buffer, rv$map, age_models(), lu_ages(), input$chk_age,
+                        rv$sp_tab, pars, input$chk_mode, progress = function(m, v) setProgress(0.65 + 0.3 * v, detail = m))
+        rv$chk <- list(run = r, lr = lr, fr = fr, rl = read_reproduction_log(r, lr$n_forest))
+        TRUE
+      }, error = function(e) { showNotification(conditionMessage(e), type = "error", duration = NULL); FALSE })
+    })
+  })
+  chk_cmp <- reactive({ req(rv$chk); compare_regen(rv$chk$lr, rv$chk$fr, input$chk_window) })
+  chk_species <- reactive({ chk_cmp()[seq_len(min(.N, 9)), LandisName] })
+  output$vb_chk_cells <- renderText(if (is.null(rv$chk)) "–" else format(rv$chk$lr$n_forest, big.mark = ","))
+  output$vb_chk_plots <- renderText(if (is.null(rv$chk)) "–" else sprintf("%s (within %s km)", format(rv$chk$fr$n_plots, big.mark = ","), rv$chk$fr$buffer_km))
+  output$vb_chk_years <- renderText(if (is.null(rv$chk)) "–" else sprintf("%d (%d–%d)", length(rv$chk$lr$years), min(rv$chk$lr$years), max(rv$chk$lr$years)))
+  output$chk_fig_species <- renderPlot(fig_regen_compare(chk_cmp()))
+  output$chk_tbl <- renderDT({
+    x <- chk_cmp()[, .(Species = LandisName, assessment, FIA_Mgha = round(fia_Mgha, 3), FIA_90pct = sprintf("%.3f–%.3f", fia_lo, fia_hi),
+                       LANDIS_Mgha = round(landis_Mgha, 3), LANDIS_range = sprintf("%.3f–%.3f", landis_min, landis_max), ratio = round(ratio, 2),
+                       FIA_pct_plots = round(fia_pct_plots, 1), FIA_pct_seedlings = round(fia_pct_seedlings, 1), LANDIS_pct_cells = round(landis_pct_cells, 1),
+                       FIA_where_present = round(fia_Mgha_where_present, 2), LANDIS_where_present = round(landis_Mgha_where_present, 2),
+                       FIA_share = round(100 * fia_share, 1), LANDIS_share = round(100 * landis_share, 1))]
+    datatable(x, rownames = FALSE, class = "compact nowrap stripe", options = list(pageLength = 50, dom = "ft", scrollX = TRUE)) |>
+      formatStyle("assessment", backgroundColor = styleEqual(
+        c("within the FIA range", "somewhat low", "somewhat high", "too little in LANDIS", "too much in LANDIS", "LANDIS regenerates; FIA has almost none", "little regeneration in either"),
+        c("#e8f5e9", "#fff3cd", "#fff3cd", "#f8d7da", "#f8d7da", "#fde2cf", "transparent")))
+  })
+  output$chk_time_ui <- renderUI(plotOutput("chk_fig_time", height = "640px"))
+  output$chk_fig_time <- renderPlot(fig_regen_time(rv$chk$lr, chk_cmp()))
+  output$chk_fig_comp <- renderPlot(fig_regen_composition(chk_cmp()))
+  output$chk_lai_ui <- renderUI(plotOutput("chk_fig_lai", height = "620px"))
+  output$chk_fig_lai <- renderPlot({ req(rv$chk); fig_regen_lai(rv$chk$lr, rv$chk$fr, input$chk_window, chk_species()) })
+  output$chk_fig_lsl <- renderPlot({ req(rv$chk); fig_landscape_lai(rv$chk$lr, rv$chk$fr) })
+  output$chk_log_ui <- renderUI(plotOutput("chk_fig_log", height = "620px"))
+  output$chk_fig_log <- renderPlot({ req(rv$chk$rl); fig_establish_log(rv$chk$rl, chk_species()) })
+  output$dl_chk <- downloadHandler(function() sprintf("LANDIS_regeneration_check_%s.csv", stamp()), function(file) {
+    x <- chk_cmp(); x[, `:=`(run = rv$chk$run$dir, window = paste(input$chk_window, collapse = "-"), regen_age = input$chk_age, fia_buffer_km = input$chk_buffer)]
+    fwrite(x, file)
+  })
+
   # ---- step 6: export ----
   observe({
     req(rv$necn)
@@ -695,12 +798,13 @@ server <- function(input, output, session) {
   })
   output$dl_cfg <- downloadHandler(function() sprintf("necn_builder_config_%s.yml", stamp()), function(file) yaml::write_yaml(settings(), file))
   report_input <- function() {
-    if (is.null(rv$fit) && is.null(rv$ic)) { showNotification("Nothing to report yet: run step 4 or step 7 first.", type = "warning"); req(FALSE) }
+    if (is.null(rv$fit) && is.null(rv$ic) && is.null(rv$chk)) { showNotification("Nothing to report yet: run step 4, 7 or 8 first.", type = "warning"); req(FALSE) }
     if (!need_mode()) req(FALSE)
     list(settings = settings(), species_map = rv$map, sla_tab = rv$sla, plot_lai = rv$lai$plots, fit = rv$fit,
          check = if (!is.null(rv$fit)) lai_check() else NULL,
          final = if (!is.null(rv$fit)) final() else NULL, mode = input$mode, f = input$rescale_f,
-         lfit = rv$lfit, lfinal = if (!is.null(rv$lfit)) lfinal() else NULL, ic = rv$ic)
+         lfit = rv$lfit, lfinal = if (!is.null(rv$lfit)) lfinal() else NULL, ic = rv$ic,
+         chk = if (!is.null(rv$chk)) c(rv$chk, list(cmp = chk_cmp(), window = input$chk_window)) else NULL)
   }
   output$dl_report <- downloadHandler(function() sprintf("NECN_builder_report_%s.html", stamp()), function(file) {
     withProgress(message = "Writing report", value = 0.5, write_report(report_input(), file))
