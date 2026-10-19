@@ -258,6 +258,8 @@ ui <- page_navbar(
           nav_panel("Table", help_text(HTML("<b>Young biomass</b> (leaf + wood of cohorts / trees up to the regeneration age, Mg/ha) is the main comparison: it does not depend on plot or cell size. <b>% plots / cells</b> with young trees: cells sample far more ground than FIA microplots, so cell values run higher for any species. <b>Where present</b> = young biomass ÷ share present: a gap here with similar frequencies points to young-cohort growth (MaximumANPP, KLAI) rather than establishment.")),
                     DTOutput("chk_tbl")),
           nav_panel("Through time", uiOutput("chk_time_ui")),
+          nav_panel("Cohort biomass by age", help_text("Biomass of each species' cohorts by cohort age (species x 10-year age class on a cell or plot, built like the initial communities), LANDIS against FIA cohorts near the landscape. This is each species' growth curve: it tests MaximumANPP and KLAI (young-cohort growth) and, at older ages, mortality and longevity."),
+                    uiOutput("chk_coh_ui"), uiOutput("chk_cohage_ui")),
           nav_panel("Composition", plotOutput("chk_fig_comp", height = "380px")),
           nav_panel("By site LAI", help_text("Regeneration rate in each site-LAI class: LANDIS cells with young cohorts against FIA plots with young trees and with seedlings. Compare shapes (cells are larger than FIA plots, so levels differ). Below: site LAI across the landscape through time against FIA plots."),
                     uiOutput("chk_lai_ui"), plotOutput("chk_fig_lsl", height = "300px")),
@@ -744,6 +746,11 @@ server <- function(input, output, session) {
   output$chk_time_ui <- renderUI(plotOutput("chk_fig_time", height = "640px"))
   output$chk_fig_time <- renderPlot(fig_regen_time(rv$chk$lr, chk_cmp()))
   output$chk_fig_comp <- renderPlot(fig_regen_composition(chk_cmp()))
+  chk_cohorts <- reactive({ req(rv$chk); cohort_biomass_by_age(rv$chk$lr, rv$chk$fr, input$chk_window) })
+  output$chk_coh_ui <- renderUI(plotOutput("chk_fig_coh", height = "640px"))
+  output$chk_fig_coh <- renderPlot(fig_cohort_biomass(chk_cohorts(), chk_species()))
+  output$chk_cohage_ui <- renderUI(plotOutput("chk_fig_cohage", height = "560px"))
+  output$chk_fig_cohage <- renderPlot(fig_cohort_ages(chk_cohorts(), chk_species()))
   output$chk_lai_ui <- renderUI(plotOutput("chk_fig_lai", height = "620px"))
   output$chk_fig_lai <- renderPlot({ req(rv$chk); fig_regen_lai(rv$chk$lr, rv$chk$fr, input$chk_window, chk_species()) })
   output$chk_fig_lsl <- renderPlot({ req(rv$chk); fig_landscape_lai(rv$chk$lr, rv$chk$fr) })
@@ -804,7 +811,7 @@ server <- function(input, output, session) {
          check = if (!is.null(rv$fit)) lai_check() else NULL,
          final = if (!is.null(rv$fit)) final() else NULL, mode = input$mode, f = input$rescale_f,
          lfit = rv$lfit, lfinal = if (!is.null(rv$lfit)) lfinal() else NULL, ic = rv$ic,
-         chk = if (!is.null(rv$chk)) c(rv$chk, list(cmp = chk_cmp(), window = input$chk_window)) else NULL)
+         chk = if (!is.null(rv$chk)) c(rv$chk, list(cmp = chk_cmp(), cohorts = chk_cohorts(), window = input$chk_window)) else NULL)
   }
   output$dl_report <- downloadHandler(function() sprintf("NECN_builder_report_%s.html", stamp()), function(file) {
     withProgress(message = "Writing report", value = 0.5, write_report(report_input(), file))

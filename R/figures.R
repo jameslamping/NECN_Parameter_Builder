@@ -271,3 +271,30 @@ fig_establish_log <- function(rl, sp) {
     ggplot2::labs(x = "Simulation year", y = "New cohorts per 1,000 forested cells", caption = "NECN-reproduction-log.csv (whole landscape).") +
     theme_builder(10) + ggplot2::theme(legend.position = "top")
 }
+
+#' Cohort biomass by cohort age per species: median and 25th-75th percentile, LANDIS against FIA
+fig_cohort_biomass <- function(cb, sp, max_age = 400) {
+  d <- cb$table[LandisName %in% sp & cls <= max_age][, LandisName := factor(LandisName, levels = sp)]
+  ggplot2::ggplot(d, ggplot2::aes(cls, q50, colour = source, fill = source)) +
+    ggplot2::geom_ribbon(ggplot2::aes(ymin = q25, ymax = q75), alpha = 0.18, colour = NA) +
+    ggplot2::geom_line(linewidth = 0.9) + ggplot2::geom_point(size = 1) +
+    ggplot2::scale_colour_manual(NULL, values = REGEN_COL, labels = c(FIA = "FIA cohorts near the landscape", LANDIS = "LANDIS cohorts")) +
+    ggplot2::scale_fill_manual(NULL, values = REGEN_COL, labels = c(FIA = "FIA cohorts near the landscape", LANDIS = "LANDIS cohorts")) +
+    ggplot2::facet_wrap(~LandisName, scales = "free_y") + ggplot2::coord_cartesian(ylim = c(0, NA)) +
+    ggplot2::labs(x = "Cohort age (10-year classes)", y = "Cohort biomass (Mg/ha, leaf + wood)",
+                  caption = sprintf(paste0("Cohort = one species' trees in one 10-year age class on a cell (LANDIS) or plot (FIA), as the initial communities are built. ",
+                                           "Lines: median; bands: 25th-75th percentile of cohorts that exist.\nLANDIS: years %d-%d pooled. FIA: tree ages from Lu et al. or the age models; classes with < %d FIA cohorts dropped. ",
+                                           "LANDIS above FIA at young ages points to MaximumANPP / KLAI (young-cohort growth)."), cb$window[1], cb$window[2], cb$min_fia)) +
+    theme_builder(10) + ggplot2::theme(legend.position = "top")
+}
+
+#' Cohort age structure per species: share of the species' cohorts in each age class
+fig_cohort_ages <- function(cb, sp, max_age = 400) {
+  d <- cb$table[LandisName %in% sp & cls <= max_age][, share := n / sum(n), by = .(LandisName, source)][, LandisName := factor(LandisName, levels = sp)]
+  ggplot2::ggplot(d, ggplot2::aes(cls, 100 * share, colour = source)) + ggplot2::geom_line(linewidth = 0.8) +
+    ggplot2::scale_colour_manual(NULL, values = REGEN_COL, labels = c(FIA = "FIA cohorts", LANDIS = "LANDIS cohorts")) +
+    ggplot2::facet_wrap(~LandisName, scales = "free_y") +
+    ggplot2::labs(x = "Cohort age (10-year classes)", y = "% of the species' cohorts",
+                  caption = "Age structure of each species' cohorts. FIA classes with too few cohorts are dropped, so FIA shares are of the classes shown.") +
+    theme_builder(10) + ggplot2::theme(legend.position = "top")
+}

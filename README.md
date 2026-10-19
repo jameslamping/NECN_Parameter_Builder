@@ -67,6 +67,7 @@ Your NECN has the change if its `CohortBiomass.cs` contains `SiteLAIContribution
    - **Young biomass (Mg/ha)** is the main comparison, because it does not depend on plot or cell size. It is split into how often the species regenerates and how much young biomass it carries where present. A gap in the second, with similar frequencies, points to young-cohort growth (`MaximumANPP`, `KLAI`) rather than establishment.
    - **Other views:**
      - young biomass through time against the FIA range;
+     - **cohort biomass by cohort age** per species: each species' growth curve, with cohorts built like the initial communities (species × 10-year class per cell or plot). It tests `MaximumANPP`/`KLAI` and, at older ages, mortality;
      - species composition;
      - regeneration rate by site LAI: the run's LAI maps against the site LAI the run's species table gives on FIA plots, which tests the light curves;
      - site LAI across the landscape through time;

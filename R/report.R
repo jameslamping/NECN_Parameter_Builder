@@ -185,6 +185,10 @@ write_report_pdf <- function(s, pdf_path, html_path = sub("\\.pdf$", ".html", pd
                       FIA_where_present = round(fia_Mgha_where_present, 2), LANDIS_where_present = round(landis_Mgha_where_present, 2))], 3),
     htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_compare(cmp), 11, 6.5)),
     htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_time(k$lr, cmp), 11, 7)),
+    if (!is.null(k$cohorts)) htmltools::tagList(
+      htmltools::h3("Cohort biomass by cohort age"),
+      htmltools::p(class = "meta", "Each species' growth curve: biomass of its cohorts (species x 10-year age class on a cell or plot) by cohort age. LANDIS above FIA at young ages points to MaximumANPP / KLAI; departures at old ages to mortality and longevity."),
+      htmltools::tags$img(class = "page-fig", src = .png64(fig_cohort_biomass(k$cohorts, sp), 11, 7))),
     if (!is.null(k$fr$plot_lai)) htmltools::tagList(
       htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_lai(k$lr, k$fr, w, sp), 11, 7)),
       htmltools::tags$img(src = .png64(fig_landscape_lai(k$lr, k$fr), 10, 3.6))))

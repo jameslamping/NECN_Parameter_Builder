@@ -59,6 +59,10 @@ assign_tree_ages <- function(tree, models, lu = NULL) {
   t[]
 }
 
+#' Cohort age class: 10-year classes, minimum 10. Halves round up (R's round() rounds halves to even,
+#' which would put integer ages ending in 5 alternately in the class below and above).
+cohort_class <- function(age) pmax(10, floor(age / 10 + 0.5) * 10)
+
 #' NECN-style cohorts on FIA plots: live trees of the LANDIS species grouped by species and
 #' 10-year age class; wood = DRYBIO_AG, leaf = DRYBIO_FOLIAGE (g/m2)
 plot_cohorts <- function(fia, plt_cn, species_map, models, lu = NULL) {
@@ -66,7 +70,7 @@ plot_cohorts <- function(fia, plt_cn, species_map, models, lu = NULL) {
   tr <- fia$TREE[PLT_CN %in% plt_cn & STATUSCD == 1 & TPA_UNADJ > 0 & SPCD %in% m$SPCD]
   tr <- assign_tree_ages(tr, models, lu)
   tr <- merge(tr, m, by = "SPCD")
-  tr[, age_class := pmax(10, round(age / 10) * 10)]
+  tr[, age_class := cohort_class(age)]
   co <- tr[, .(wood_gm2 = sum(DRYBIO_AG * TPA_UNADJ * LBAC_TO_GM2, na.rm = TRUE),
                leaf_gm2 = sum(DRYBIO_FOLIAGE * TPA_UNADJ * LBAC_TO_GM2, na.rm = TRUE), n_trees = .N),
            by = .(PLT_CN, LandisName, age_class)]

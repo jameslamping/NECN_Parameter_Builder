@@ -84,7 +84,7 @@ build_ic <- function(template, treemap_path, fia, species_map, models, lu = NULL
   found <- unique(tr_all$PLT_CN)
   tr <- tr_all[STATUSCD == 1 & TPA_UNADJ > 0 & SPCD %in% m$SPCD]
   tr <- merge(assign_tree_ages(tr, models, lu), m, by = "SPCD")
-  tr[, age := pmax(10, round(age / 10) * 10)]
+  tr[, age := cohort_class(age)]
   if (!is.null(longevity)) {
     tr <- merge(tr, longevity, by = "LandisName", all.x = TRUE)
     tr[!is.na(Longevity) & age >= Longevity, `:=`(age = pmax(10, floor((Longevity - 1) / 10) * 10), capped = TRUE)]

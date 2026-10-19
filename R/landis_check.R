@@ -32,8 +32,10 @@ read_landis_run <- function(run_dir) {
        code_map = file.path(run_dir, "output-community-0.tif"), reproduction_log = file.path(run_dir, "NECN-reproduction-log.csv"))
 }
 
-#' Young-cohort summaries from a LANDIS run
-#' @return list(regen = year x species, lai_young = year x species x LAI, lai_all = year x LAI, n_forest, years)
+
+#' Young-cohort summaries from a LANDIS run, plus cohort biomass by cohort age
+#' @return list(regen = year x species, lai_young = year x species x LAI, lai_all = year x LAI,
+#'   coh_hist = year x species x age class x log10(biomass) bin (counts of cohorts), n_forest, years)
 landis_regen <- function(run, years, regen_age = 20, progress = function(msg, value) NULL) {
   years <- sort(intersect(years, run$community_years))
   if (!length(years)) stop("None of the chosen years have a community-input-file in the run folder.")
@@ -44,10 +46,15 @@ landis_regen <- function(run, years, regen_age = 20, progress = function(msg, va
   progress("Year 0 (forested cells)", 0.02)
   forest <- unique(rd(0)$MapCode)
   n_forest <- length(forest)
-  out <- list(); lai_y <- list(); lai_a <- list()
+  out <- list(); lai_y <- list(); lai_a <- list(); coh_h <- list()
   for (i in seq_along(years)) {
     t <- years[i]; progress(sprintf("Year %d", t), 0.05 + 0.9 * i / length(years))
-    d <- rd(t)[CohortAge <= regen_age & MapCode %in% forest]
+    full <- rd(t)[MapCode %in% forest]
+    d <- full[CohortAge <= regen_age]
+    # cohorts grouped like the initial communities (species x 10-year class per cell); their biomass kept as a
+    # histogram of log10(Mg/ha) in 0.05 steps so quantiles can be pooled over years without keeping every cohort
+    cb <- full[, .(B = sum(as.numeric(CohortBiomass)) / 100), by = .(MapCode, SpeciesName, cls = cohort_class(CohortAge))][B > 0]
+    coh_h[[i]] <- cb[, .N, by = .(SpeciesName, cls, lb = round(log10(B) / 0.01) * 0.01)][, year := t]
     out[[i]] <- d[, .(cells_young = data.table::uniqueN(MapCode), young_gm2_sum = sum(as.numeric(CohortBiomass))), by = SpeciesName][, year := t]
     lf <- file.path(run$dir, "NECN", sprintf("LAI-%d.tif", t))
     if (file.exists(lf)) {
@@ -61,6 +68,7 @@ landis_regen <- function(run, years, regen_age = 20, progress = function(msg, va
   regen <- data.table::rbindlist(out)
   regen[, `:=`(young_Mgha = young_gm2_sum / n_forest / 100, pct_cells = 100 * cells_young / n_forest)]
   list(regen = regen[], lai_young = data.table::rbindlist(lai_y), lai_all = data.table::rbindlist(lai_a),
+       coh_hist = data.table::rbindlist(coh_h),
        n_forest = n_forest, years = years, regen_age = regen_age)
 }
 
@@ -89,7 +97,10 @@ fia_regen <- function(fia, plots, outline, buffer_km, species_map, models, lu = 
   progress("Tree ages", 0.3)
   tr <- fia$TREE[PLT_CN %in% near & STATUSCD == 1 & TPA_UNADJ > 0 & SPCD %in% m$SPCD]
   tr <- merge(assign_tree_ages(tr, models, lu), m, by = "SPCD")
-  young <- tr[age <= regen_age, .(young_gm2 = sum((DRYBIO_AG + DRYBIO_FOLIAGE) * TPA_UNADJ * LBAC_TO_GM2, na.rm = TRUE)), by = .(PLT_CN, LandisName)]
+  tr[, bio := (DRYBIO_AG + DRYBIO_FOLIAGE) * TPA_UNADJ * LBAC_TO_GM2]
+  young <- tr[age <= regen_age, .(young_gm2 = sum(bio, na.rm = TRUE)), by = .(PLT_CN, LandisName)]
+  # FIA cohorts built like the initial communities: species x 10-year age class per plot, leaf + wood (Mg/ha)
+  cohorts <- tr[, .(B = sum(bio, na.rm = TRUE) / 100), by = .(PLT_CN, LandisName, cls = cohort_class(age))][B > 0]
   grid <- data.table::CJ(PLT_CN = near, LandisName = unique(m$LandisName))
   d <- merge(grid, young, by = c("PLT_CN", "LandisName"), all.x = TRUE)[is.na(young_gm2), young_gm2 := 0]
   progress("Seedlings", 0.6)
@@ -104,7 +115,7 @@ fia_regen <- function(fia, plots, outline, buffer_km, species_map, models, lu = 
            else necn_site_lai(plot_cohorts(fia, near, species_map, models, lu), pars, "current_code")[, .(PLT_CN, LAI_necn)]
     lai <- merge(data.table::data.table(PLT_CN = near), lai, by = "PLT_CN", all.x = TRUE)[is.na(LAI_necn), LAI_necn := 0]
   }
-  list(plots = d[], n_plots = length(near), plot_lai = lai, buffer_km = buffer_km, regen_age = regen_age)
+  list(plots = d[], n_plots = length(near), plot_lai = lai, cohorts = cohorts[], buffer_km = buffer_km, regen_age = regen_age)
 }
 
 #' Species table: LANDIS (window of years) against FIA, with a bootstrap 90% interval for the FIA mean
@@ -146,4 +157,16 @@ read_reproduction_log <- function(run, n_forest) {
   d <- data.table::melt(d[, c("Time", "SpeciesName", keep), with = FALSE], id.vars = c("Time", "SpeciesName"), variable.name = "type", value.name = "n")
   d[, type := sub("NumCohorts", "", type)][, per_1000_cells := 1000 * n / n_forest]
   d[n > 0]
+}
+
+#' Cohort biomass by cohort age, per species: quartiles of the biomass of cohorts that exist (species x 10-year
+#' class per cell or plot). LANDIS cohorts are pooled over the window's years.
+cohort_biomass_by_age <- function(lr, fr, window, min_fia = 10, max_age = 500) {
+  yrs <- lr$years[lr$years >= window[1] & lr$years <= window[2]]
+  h <- lr$coh_hist[year %in% yrs & cls <= max_age, .(N = sum(N)), by = .(LandisName = SpeciesName, cls, lb)]
+  data.table::setorder(h, LandisName, cls, lb)
+  hq <- function(lb, N, p) 10^lb[which(cumsum(N) / sum(N) >= p)[1]]
+  land <- h[, .(q25 = hq(lb, N, .25), q50 = hq(lb, N, .5), q75 = hq(lb, N, .75), n = sum(N)), by = .(LandisName, cls)][, source := "LANDIS"]
+  fia <- fr$cohorts[cls <= max_age, .(q25 = stats::quantile(B, .25), q50 = stats::median(B), q75 = stats::quantile(B, .75), n = .N), by = .(LandisName, cls)][n >= min_fia][, source := "FIA"]
+  list(table = rbind(land, fia), window = window, min_fia = min_fia)
 }

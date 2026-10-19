@@ -114,7 +114,7 @@ run_builder <- function(config, verbose = TRUE) {
     fr <- fia_regen(fia, plots, landscape_outline(run), s$check_buffer_km, map, fit_age_models(fia$TREE[STATUSCD == 1], ref),
                     read_lu_ages(s$age_dir, s$states), s$check_regen_age, sp_tab, rpars, if (is.null(s$check_mode)) s$mode else s$check_mode)
     win <- if (is.null(s$check_window)) c(s$check_regen_age + 1, max(run$community_years)) else unlist(s$check_window)
-    chk <- list(run = run, lr = lr, fr = fr, cmp = compare_regen(lr, fr, win), window = win)
+    chk <- list(run = run, lr = lr, fr = fr, cmp = compare_regen(lr, fr, win), cohorts = cohort_biomass_by_age(lr, fr, win), window = win)
     say(sprintf("  %d forested cells, %d FIA plots within %s km", lr$n_forest, fr$n_plots, s$check_buffer_km))
   }
 
