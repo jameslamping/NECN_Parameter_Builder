@@ -35,7 +35,8 @@ read_landis_run <- function(run_dir) {
 
 #' Young-cohort summaries from a LANDIS run, plus cohort biomass by cohort age
 #' @return list(regen = year x species, lai_young = year x species x LAI, lai_all = year x LAI,
-#'   coh_hist = year x species x age class x log10(biomass) bin (counts of cohorts), n_forest, years)
+#'   coh_hist = year x species x age class x log10(biomass) bin (counts of cohorts), site_biomass = year x quantiles of
+#'   cell biomass (Mg/ha), species_biomass = year x species Mg/ha averaged over forested cells, n_forest, years)
 landis_regen <- function(run, years, regen_age = 20, progress = function(msg, value) NULL) {
   years <- sort(intersect(years, run$community_years))
   if (!length(years)) stop("None of the chosen years have a community-input-file in the run folder.")
@@ -46,7 +47,7 @@ landis_regen <- function(run, years, regen_age = 20, progress = function(msg, va
   progress("Year 0 (forested cells)", 0.02)
   forest <- unique(rd(0)$MapCode)
   n_forest <- length(forest)
-  out <- list(); lai_y <- list(); lai_a <- list(); coh_h <- list()
+  out <- list(); lai_y <- list(); lai_a <- list(); coh_h <- list(); site_q <- list(); sp_b <- list()
   for (i in seq_along(years)) {
     t <- years[i]; progress(sprintf("Year %d", t), 0.05 + 0.9 * i / length(years))
     full <- rd(t)[MapCode %in% forest]
@@ -55,6 +56,11 @@ landis_regen <- function(run, years, regen_age = 20, progress = function(msg, va
     # histogram of log10(Mg/ha) in 0.01 steps so quantiles can be pooled over years without keeping every cohort
     cb <- full[, .(B = sum(as.numeric(CohortBiomass)) / 100), by = .(MapCode, SpeciesName, cls = cohort_class(CohortAge))][B > 0]
     coh_h[[i]] <- cb[, .N, by = .(SpeciesName, cls, lb = round(log10(B) / 0.01) * 0.01)][, year := t]
+    # landscape biomass: quantiles over forested cells (cells with no cohorts count as 0) and totals by species
+    sb <- full[, .(B = sum(as.numeric(CohortBiomass)) / 100), by = MapCode]$B
+    sb <- c(sb, rep(0, n_forest - length(sb)))
+    site_q[[i]] <- data.table::data.table(year = t, q25 = stats::quantile(sb, .25), q50 = stats::median(sb), q75 = stats::quantile(sb, .75), mean = mean(sb))
+    sp_b[[i]] <- full[, .(Mgha = sum(as.numeric(CohortBiomass)) / 100 / n_forest), by = SpeciesName][, year := t]
     out[[i]] <- d[, .(cells_young = data.table::uniqueN(MapCode), young_gm2_sum = sum(as.numeric(CohortBiomass))), by = SpeciesName][, year := t]
     lf <- file.path(run$dir, "NECN", sprintf("LAI-%d.tif", t))
     if (file.exists(lf)) {
@@ -68,7 +74,7 @@ landis_regen <- function(run, years, regen_age = 20, progress = function(msg, va
   regen <- data.table::rbindlist(out)
   regen[, `:=`(young_Mgha = young_gm2_sum / n_forest / 100, pct_cells = 100 * cells_young / n_forest)]
   list(regen = regen[], lai_young = data.table::rbindlist(lai_y), lai_all = data.table::rbindlist(lai_a),
-       coh_hist = data.table::rbindlist(coh_h),
+       coh_hist = data.table::rbindlist(coh_h), site_biomass = data.table::rbindlist(site_q), species_biomass = data.table::rbindlist(sp_b),
        n_forest = n_forest, years = years, regen_age = regen_age)
 }
 
