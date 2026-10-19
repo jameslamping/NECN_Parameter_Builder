@@ -99,6 +99,10 @@ fia_regen <- function(fia, plots, outline, buffer_km, species_map, models, lu = 
   tr <- merge(assign_tree_ages(tr, models, lu), m, by = "SPCD")
   tr[, bio := (DRYBIO_AG + DRYBIO_FOLIAGE) * TPA_UNADJ * LBAC_TO_GM2]
   young <- tr[age <= regen_age, .(young_gm2 = sum(bio, na.rm = TRUE)), by = .(PLT_CN, LandisName)]
+  # can FIA see trees this young? its smallest measured trees are saplings of 1-5 in DBH
+  sap <- tr[DIA < 5]
+  ages <- list(sap_n = nrow(sap), sap_median = stats::median(sap$age), sap_pct_young = 100 * mean(sap$age <= regen_age),
+               pct_lu = 100 * mean(tr$age_src == "Lu et al."))
   # FIA cohorts built like the initial communities: species x 10-year age class per plot, leaf + wood (Mg/ha)
   cohorts <- tr[, .(B = sum(bio, na.rm = TRUE) / 100), by = .(PLT_CN, LandisName, cls = cohort_class(age))][B > 0]
   grid <- data.table::CJ(PLT_CN = near, LandisName = unique(m$LandisName))
@@ -115,7 +119,19 @@ fia_regen <- function(fia, plots, outline, buffer_km, species_map, models, lu = 
            else necn_site_lai(plot_cohorts(fia, near, species_map, models, lu), pars, "current_code")[, .(PLT_CN, LAI_necn)]
     lai <- merge(data.table::data.table(PLT_CN = near), lai, by = "PLT_CN", all.x = TRUE)[is.na(LAI_necn), LAI_necn := 0]
   }
-  list(plots = d[], n_plots = length(near), plot_lai = lai, cohorts = cohorts[], buffer_km = buffer_km, regen_age = regen_age)
+  list(plots = d[], n_plots = length(near), plot_lai = lai, cohorts = cohorts[], ages = ages, buffer_km = buffer_km, regen_age = regen_age)
+}
+
+#' Warning text when FIA cannot measure regeneration this young: FIA has biomass only for trees >= 1 in DBH
+#' (seedlings are counted without biomass), and the age models cannot give ages below their intercepts
+fia_age_note <- function(fr) {
+  a <- fr$ages
+  if (is.null(a) || !a$sap_n || a$sap_pct_young >= 25) return(NULL)
+  sprintf(paste0("FIA can barely see regeneration up to %d years old: only %.0f%% of its smallest measured trees near the landscape (saplings 1-5 in DBH) ",
+                 "are that young (median %.0f years). FIA gives biomass only for trees >= 1 in DBH; seedlings are counted without biomass. %s",
+                 "Use a regeneration age of 20 or more, and compare seedling frequency (panel b) for the youngest cohorts."),
+          fr$regen_age, a$sap_pct_young, a$sap_median,
+          if (a$pct_lu < 50) sprintf("%s of the tree ages come from Lu et al.; the age models cannot give ages below their intercepts (about 10-15 years), so set the Lu et al. tree ages folder (step 5). ", if (a$pct_lu < 0.5) "None" else sprintf("Only %.0f%%", a$pct_lu)) else "")
 }
 
 #' Species table: LANDIS (window of years) against FIA, with a bootstrap 90% interval for the FIA mean

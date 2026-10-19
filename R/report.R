@@ -180,10 +180,11 @@ write_report_pdf <- function(s, pdf_path, html_path = sub("\\.pdf$", ".html", pd
       "Young biomass (Mg/ha) does not depend on plot or cell size; frequencies do (a 90 m cell samples far more ground than FIA microplots)."),
       htmltools::htmlEscape(k$run$dir), k$lr$regen_age, format(k$lr$n_forest, big.mark = ","), w[1], w[2],
       format(k$fr$n_plots, big.mark = ","), k$fr$buffer_km))),
+    if (!is.null(n <- fia_age_note(k$fr))) htmltools::div(class = "box", htmltools::tags$b("Caution. "), n),
     .tab_html(cmp[, .(Species = LandisName, Assessment = assessment, FIA_Mgha = round(fia_Mgha, 3), FIA_lo = round(fia_lo, 3), FIA_hi = round(fia_hi, 3),
                       LANDIS_Mgha = round(landis_Mgha, 3), Ratio = round(ratio, 2), FIA_pct_plots = round(fia_pct_plots, 1), LANDIS_pct_cells = round(landis_pct_cells, 1),
                       FIA_where_present = round(fia_Mgha_where_present, 2), LANDIS_where_present = round(landis_Mgha_where_present, 2))], 3),
-    htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_compare(cmp), 11, 6.5)),
+    htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_compare(cmp), 11, min(14, 2 + 0.3 * nrow(cmp)))),
     htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_time(k$lr, cmp), 11, 7)),
     if (!is.null(k$cohorts)) htmltools::tagList(
       htmltools::h3("Cohort biomass by cohort age"),

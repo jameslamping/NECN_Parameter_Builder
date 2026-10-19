@@ -240,6 +240,7 @@ ui <- page_navbar(
           radioButtons("chk_mode", "How this run's NECN computes site LAI", choices = c(
             "stand-level (NECN with the stand-level change)" = "stand_level", "sum of cohort LAI (NECN 8.3 and earlier)" = "current_code")),
           numericInput("chk_age", "Regeneration = cohorts / trees up to this age (years)", 20, 5, 60, 5),
+          help_text("FIA has biomass only for trees >= 1 in DBH, which are rarely under 10-15 years old, so use 20 or more. Set the Lu et al. tree ages folder (step 5) for realistic ages of small trees."),
           numericInput("chk_every", "Read every N years of the run", 5, 1, 20, 1),
           numericInput("chk_buffer", "FIA plots within this distance of the landscape (km)", 25, 0, 200, 5),
           help_text("Requires Output Biomass Community output (community-input-file-{t}.csv) and output-community-0.tif. Only cells forested at year 0 count. FIA tree ages come from the same age source as step 5/7 (Lu et al. folder or age models)."),
@@ -254,7 +255,7 @@ ui <- page_navbar(
           value_box("FIA plots near the landscape", textOutput("vb_chk_plots"), theme = "secondary"),
           value_box("Years read", textOutput("vb_chk_years"), theme = "primary")),
         navset_card_tab(full_screen = TRUE,
-          nav_panel("By species", plotOutput("chk_fig_species", height = "620px")),
+          nav_panel("By species", uiOutput("chk_age_note"), uiOutput("chk_species_ui")),
           nav_panel("Table", help_text(HTML("<b>Young biomass</b> (leaf + wood of cohorts / trees up to the regeneration age, Mg/ha) is the main comparison: it does not depend on plot or cell size. <b>% plots / cells</b> with young trees: cells sample far more ground than FIA microplots, so cell values run higher for any species. <b>Where present</b> = young biomass ÷ share present: a gap here with similar frequencies points to young-cohort growth (MaximumANPP, KLAI) rather than establishment.")),
                     DTOutput("chk_tbl")),
           nav_panel("Through time", uiOutput("chk_time_ui")),
@@ -722,6 +723,7 @@ server <- function(input, output, session) {
         fr <- fia_regen(rv$fia, rv$plots, landscape_outline(r), input$chk_buffer, rv$map, age_models(), lu_ages(), input$chk_age,
                         rv$sp_tab, pars, input$chk_mode, progress = function(m, v) setProgress(0.65 + 0.3 * v, detail = m))
         rv$chk <- list(run = r, lr = lr, fr = fr, rl = read_reproduction_log(r, lr$n_forest))
+        if (!is.null(n <- fia_age_note(fr))) showNotification(n, type = "warning", duration = 30)
         TRUE
       }, error = function(e) { showNotification(conditionMessage(e), type = "error", duration = NULL); FALSE })
     })
@@ -731,7 +733,9 @@ server <- function(input, output, session) {
   output$vb_chk_cells <- renderText(if (is.null(rv$chk)) "–" else format(rv$chk$lr$n_forest, big.mark = ","))
   output$vb_chk_plots <- renderText(if (is.null(rv$chk)) "–" else sprintf("%s (within %s km)", format(rv$chk$fr$n_plots, big.mark = ","), rv$chk$fr$buffer_km))
   output$vb_chk_years <- renderText(if (is.null(rv$chk)) "–" else sprintf("%d (%d–%d)", length(rv$chk$lr$years), min(rv$chk$lr$years), max(rv$chk$lr$years)))
+  output$chk_species_ui <- renderUI(plotOutput("chk_fig_species", height = sprintf("%dpx", 180 + 34 * nrow(chk_cmp()))))
   output$chk_fig_species <- renderPlot(fig_regen_compare(chk_cmp()))
+  output$chk_age_note <- renderUI({ req(rv$chk); n <- fia_age_note(rv$chk$fr); if (!is.null(n)) div(class = "alert alert-warning", n) })
   output$chk_tbl <- renderDT({
     x <- chk_cmp()[, .(Species = LandisName, assessment, FIA_Mgha = round(fia_Mgha, 3), FIA_90pct = sprintf("%.3f–%.3f", fia_lo, fia_hi),
                        LANDIS_Mgha = round(landis_Mgha, 3), LANDIS_range = sprintf("%.3f–%.3f", landis_min, landis_max), ratio = round(ratio, 2),

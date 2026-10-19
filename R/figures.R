@@ -173,8 +173,8 @@ fig_lai_check <- function(chk) {
 REGEN_COL <- c(FIA = "grey15", LANDIS = "#2a78d6")
 
 #' Young-cohort regeneration by species: density (scale-free), how often, and how much where present
-fig_regen_compare <- function(cmp, top = 16) {
-  x <- cmp[(fia_Mgha >= 0.005 | landis_Mgha >= 0.005)][seq_len(min(.N, top))]
+fig_regen_compare <- function(cmp, top = Inf) {
+  x <- cmp[seq_len(min(.N, top))]
   lev <- rev(x$LandisName)
   f <- function(v) pmax(v, 0.001)
   d <- rbind(
@@ -182,19 +182,24 @@ fig_regen_compare <- function(cmp, top = 16) {
     x[, .(LandisName, panel = "a. Young biomass (Mg/ha)", src = "LANDIS", v = f(landis_Mgha), lo = f(landis_min), hi = f(landis_max))],
     x[, .(LandisName, panel = "b. Plots / cells with young trees (%)", src = "FIA", v = fia_pct_plots, lo = NA_real_, hi = NA_real_)],
     x[, .(LandisName, panel = "b. Plots / cells with young trees (%)", src = "LANDIS", v = landis_pct_cells, lo = NA_real_, hi = NA_real_)],
+    if (!all(is.na(x$fia_pct_seedlings))) x[, .(LandisName, panel = "b. Plots / cells with young trees (%)", src = "FIA seedlings", v = fia_pct_seedlings, lo = NA_real_, hi = NA_real_)],
     x[, .(LandisName, panel = "c. Young biomass where present (Mg/ha)", src = "FIA", v = f(fia_Mgha_where_present), lo = NA_real_, hi = NA_real_)],
     x[, .(LandisName, panel = "c. Young biomass where present (Mg/ha)", src = "LANDIS", v = f(landis_Mgha_where_present), lo = NA_real_, hi = NA_real_)])
   d[, LandisName := factor(LandisName, levels = lev)]
-  d[, y := as.numeric(LandisName) + data.table::fifelse(src == "FIA", 0.15, -0.15)]
+  d[, y := as.numeric(LandisName) + data.table::fifelse(src == "LANDIS", -0.15, 0.15)]
   ggplot2::ggplot(d, ggplot2::aes(v, y, colour = src)) +
     ggplot2::geom_segment(data = d[!is.na(lo)], ggplot2::aes(x = lo, xend = hi, yend = y), linewidth = 0.8, alpha = 0.6) +
-    ggplot2::geom_point(size = 2.2) +
-    ggplot2::scale_colour_manual(NULL, values = REGEN_COL, labels = c(FIA = "FIA plots (90% interval)", LANDIS = "LANDIS cells (range across years)")) +
+    ggplot2::geom_point(ggplot2::aes(shape = src), size = 2.2) +
+    ggplot2::scale_colour_manual(NULL, values = c(REGEN_COL, `FIA seedlings` = REGEN_COL[["FIA"]]),
+                                 labels = c(FIA = "FIA plots (90% interval)", `FIA seedlings` = "FIA plots with seedlings", LANDIS = "LANDIS cells (range across years)")) +
+    ggplot2::scale_shape_manual(NULL, values = c(FIA = 16, `FIA seedlings` = 1, LANDIS = 16),
+                                labels = c(FIA = "FIA plots (90% interval)", `FIA seedlings` = "FIA plots with seedlings", LANDIS = "LANDIS cells (range across years)")) +
     ggplot2::scale_y_continuous(breaks = seq_along(lev), labels = lev) +
     ggplot2::facet_wrap(~panel, nrow = 1, scales = "free_x") +
-    ggplot2::scale_x_continuous(trans = scales::pseudo_log_trans(sigma = 0.01, base = 10)) +
+    ggplot2::scale_x_continuous(trans = scales::pseudo_log_trans(sigma = 0.01, base = 10), labels = function(b) vapply(b, format, "", scientific = FALSE, drop0trailing = TRUE),
+                                breaks = function(l) { b <- c(0, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100, 300); b[b >= l[1] & b <= l[2]] }) +
     ggplot2::labs(x = NULL, y = NULL,
-                  caption = "a = b x c. (a) does not depend on plot or cell size and is the main comparison. (b) a 90 m cell samples far more ground than FIA microplots,\nso cell frequencies run higher for any species. A gap in (c) with similar (b) points to young-cohort growth (MaximumANPP, KLAI) rather than establishment.") +
+                  caption = "a = b x c (filled points). (a) does not depend on plot or cell size and is the main comparison. (b) a 90 m cell samples far more ground than FIA microplots,\nso cell frequencies run higher for any species; open circles = FIA plots with seedlings (< 1 in DBH, no biomass in FIA).\nA gap in (c) with similar (b) points to young-cohort growth (MaximumANPP, KLAI) rather than establishment.") +
     theme_builder(10) + ggplot2::theme(legend.position = "top", panel.grid.major.y = ggplot2::element_line(colour = "grey92"))
 }
 
