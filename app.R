@@ -248,7 +248,11 @@ ui <- page_navbar(
         step_card("Comparison window",
           sliderInput("chk_window", "LANDIS years to compare", 0, 100, c(25, 100), step = 1),
           help_text("Default: years after the initial communities' young cohorts have aged out (> the regeneration age), so all regeneration counted was simulated."),
-          downloadButton("dl_chk", "Comparison table (.csv)", class = "w-100"))),
+          downloadButton("dl_chk", "Comparison table (.csv)", class = "w-100 mb-2"),
+          downloadButton("dl_chk_figs", "All figures (.zip of PNG)", class = "w-100 mb-2"),
+          downloadButton("dl_chk_pdf", "Report (.pdf)", class = "w-100 mb-2"),
+          downloadButton("dl_chk_html", "Report (.html)", class = "w-100"),
+          help_text("The report includes every figure here plus anything from steps 4, 5 and 7."))),
       div(
         layout_columns(fill = FALSE,
           value_box("Forested cells (year 0)", textOutput("vb_chk_cells"), theme = "secondary"),
@@ -819,15 +823,20 @@ server <- function(input, output, session) {
          lfit = rv$lfit, lfinal = if (!is.null(rv$lfit)) lfinal() else NULL, ic = rv$ic,
          chk = if (!is.null(rv$chk)) c(rv$chk, list(cmp = chk_cmp(), cohorts = chk_cohorts(), window = input$chk_window)) else NULL)
   }
-  output$dl_report <- downloadHandler(function() sprintf("NECN_builder_report_%s.html", stamp()), function(file) {
-    withProgress(message = "Writing report", value = 0.5, write_report(report_input(), file))
+  html_report <- function(file) withProgress(message = "Writing report", value = 0.5, write_report(report_input(), file))
+  pdf_report <- function(file) withProgress(message = "Writing PDF report", value = 0.3, {
+    h <- tempfile(fileext = ".html"); write_report(report_input(), h)
+    setProgress(0.7, detail = "Printing with Chrome")
+    tryCatch(html_to_pdf(h, file), error = function(e) showNotification(conditionMessage(e), type = "error", duration = NULL))
   })
-  output$dl_report_pdf <- downloadHandler(function() sprintf("NECN_builder_report_%s.pdf", stamp()), function(file) {
-    withProgress(message = "Writing PDF report", value = 0.3, {
-      h <- tempfile(fileext = ".html"); write_report(report_input(), h)
-      setProgress(0.7, detail = "Printing with Chrome")
-      tryCatch(html_to_pdf(h, file), error = function(e) showNotification(conditionMessage(e), type = "error", duration = NULL))
-    })
+  output$dl_report <- downloadHandler(function() sprintf("NECN_builder_report_%s.html", stamp()), html_report)
+  output$dl_report_pdf <- downloadHandler(function() sprintf("NECN_builder_report_%s.pdf", stamp()), pdf_report)
+  output$dl_chk_html <- downloadHandler(function() sprintf("LANDIS_run_check_report_%s.html", stamp()), html_report)
+  output$dl_chk_pdf <- downloadHandler(function() sprintf("LANDIS_run_check_report_%s.pdf", stamp()), pdf_report)
+  output$dl_chk_figs <- downloadHandler(function() sprintf("LANDIS_run_check_figures_%s.zip", stamp()), function(file) {
+    req(rv$chk)
+    withProgress(message = "Writing figures", value = 0.5,
+                 chk_figures_zip(c(rv$chk, list(cmp = chk_cmp(), cohorts = chk_cohorts(), window = input$chk_window)), file))
   })
 }
 

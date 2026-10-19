@@ -27,3 +27,4 @@ config_local.yml
 
 # regeneration check outputs
 LANDIS_regeneration_check_*.csv
+LANDIS_run_check_figures_*.zip

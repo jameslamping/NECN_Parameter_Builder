@@ -169,9 +169,38 @@ write_report_pdf <- function(s, pdf_path, html_path = sub("\\.pdf$", ".html", pd
     .fig_pages(function(species) fig_light_fit(s$lfit, s$lfinal, species, ls$scale), sort(s$lfit$params[n_plots > 0, LandisName])))
 }
 
-.chk_section <- function(k) {
+#' Every run-check figure, in report order: list of list(name, plot, width, height) in inches
+chk_figures <- function(k) {
   cmp <- k$cmp; w <- k$window
   sp <- landscape_species(k$lr, cmp); hh <- chk_fig_height(length(sp), 2.1, 1.4)
+  f <- function(name, plot, width, height) list(name = name, plot = plot, width = width, height = height)
+  out <- list(
+    f("1_young_biomass_by_species", fig_regen_compare(cmp), 11, min(14, 2 + 0.3 * nrow(cmp))),
+    f("2_young_biomass_through_time", fig_regen_time(k$lr, cmp, sp), 11, hh))
+  if (!is.null(k$cohorts)) out <- c(out, list(
+    f("3_cohort_biomass_by_age", fig_cohort_biomass(k$cohorts, sp) + ggplot2::labs(title = "Cohort biomass by cohort age",
+      subtitle = "Each species' growth curve. LANDIS above FIA at young ages points to MaximumANPP / KLAI; departures at old ages to mortality and longevity."), 11, hh + 0.5),
+    f("4_cohort_age_structure", fig_cohort_ages(k$cohorts, sp) + ggplot2::labs(title = "Cohort age structure",
+      subtitle = "Share of each species' cohorts in each 10-year age class, LANDIS against FIA."), 11, hh + 0.3)))
+  out <- c(out, list(f("5_composition", fig_regen_composition(cmp) + ggplot2::labs(title = "Composition of young biomass"), 9, min(12, 1.5 + 0.28 * nrow(cmp)))))
+  if (!is.null(k$fr$plot_lai)) out <- c(out, list(
+    f("6_regeneration_by_site_LAI", fig_regen_lai(k$lr, k$fr, w, sp), 11, hh),
+    f("7_landscape_site_LAI", fig_landscape_lai(k$lr, k$fr), 10, 3.6)))
+  if (!is.null(k$rl) && nrow(k$rl)) out <- c(out, list(
+    f("8_establishment_log", fig_establish_log(k$rl, sp) + ggplot2::labs(title = "New cohorts per year by reproduction type"), 11, hh)))
+  out
+}
+
+#' Write every run-check figure as a PNG into a zip file
+chk_figures_zip <- function(k, zipfile, dpi = 150) {
+  d <- tempfile("figs"); dir.create(d)
+  for (x in chk_figures(k)) ggplot2::ggsave(file.path(d, paste0(x$name, ".png")), x$plot, width = x$width, height = x$height, dpi = dpi)
+  utils::zip(zipfile, list.files(d, full.names = TRUE), flags = "-j9q")
+  invisible(zipfile)
+}
+
+.chk_section <- function(k) {
+  cmp <- k$cmp; w <- k$window
   htmltools::tagList(
     htmltools::h2("Check: regeneration in a LANDIS run against FIA"),
     htmltools::div(class = "box", htmltools::HTML(sprintf(paste0(
@@ -184,11 +213,5 @@ write_report_pdf <- function(s, pdf_path, html_path = sub("\\.pdf$", ".html", pd
     .tab_html(cmp[, .(Species = LandisName, Assessment = assessment, FIA_Mgha = round(fia_Mgha, 3), FIA_lo = round(fia_lo, 3), FIA_hi = round(fia_hi, 3),
                       LANDIS_Mgha = round(landis_Mgha, 3), Ratio = round(ratio, 2), FIA_pct_plots = round(fia_pct_plots, 1), LANDIS_pct_cells = round(landis_pct_cells, 1),
                       FIA_where_present = round(fia_Mgha_where_present, 2), LANDIS_where_present = round(landis_Mgha_where_present, 2))], 3),
-    htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_compare(cmp), 11, min(14, 2 + 0.3 * nrow(cmp)))),
-    htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_time(k$lr, cmp, sp), 11, hh)),
-    if (!is.null(k$cohorts)) htmltools::tags$img(class = "page-fig", src = .png64(fig_cohort_biomass(k$cohorts, sp) +
-      ggplot2::labs(title = "Cohort biomass by cohort age", subtitle = "Each species' growth curve. LANDIS above FIA at young ages points to MaximumANPP / KLAI; departures at old ages to mortality and longevity."), 11, hh + 0.5)),
-    if (!is.null(k$fr$plot_lai)) htmltools::tagList(
-      htmltools::tags$img(class = "page-fig", src = .png64(fig_regen_lai(k$lr, k$fr, w, sp), 11, hh)),
-      htmltools::tags$img(src = .png64(fig_landscape_lai(k$lr, k$fr), 10, 3.6))))
+    lapply(chk_figures(k), function(x) htmltools::tags$img(class = if (x$height > 5) "page-fig", src = .png64(x$plot, x$width, x$height))))
 }

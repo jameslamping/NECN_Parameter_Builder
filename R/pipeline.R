@@ -114,7 +114,7 @@ run_builder <- function(config, verbose = TRUE) {
     fr <- fia_regen(fia, plots, landscape_outline(run), s$check_buffer_km, map, fit_age_models(fia$TREE[STATUSCD == 1], ref),
                     read_lu_ages(s$age_dir, s$states), s$check_regen_age, sp_tab, rpars, if (is.null(s$check_mode)) s$mode else s$check_mode)
     win <- if (is.null(s$check_window)) c(s$check_regen_age + 1, max(run$community_years)) else unlist(s$check_window)
-    chk <- list(run = run, lr = lr, fr = fr, cmp = compare_regen(lr, fr, win), cohorts = cohort_biomass_by_age(lr, fr, win), window = win)
+    chk <- list(run = run, lr = lr, fr = fr, cmp = compare_regen(lr, fr, win), cohorts = cohort_biomass_by_age(lr, fr, win), rl = read_reproduction_log(run, lr$n_forest), window = win)
     if (!is.null(n <- fia_age_note(fr))) warning(n, call. = FALSE)
     say(sprintf("  %d forested cells, %d FIA plots within %s km", lr$n_forest, fr$n_plots, s$check_buffer_km))
   }
@@ -124,7 +124,10 @@ run_builder <- function(config, verbose = TRUE) {
   data.table::fwrite(out, file.path(s$out_dir, sprintf("NECN_species_%s_%s.csv", s$mode, stamp)))
   data.table::fwrite(final, file.path(s$out_dir, sprintf("LAI_parameters_%s.csv", stamp)))
   if (!is.null(lfinal)) data.table::fwrite(lfinal, file.path(s$out_dir, sprintf("light_curves_%s.csv", stamp)))
-  if (!is.null(chk)) data.table::fwrite(chk$cmp, file.path(s$out_dir, sprintf("LANDIS_regeneration_check_%s.csv", stamp)))
+  if (!is.null(chk)) {
+    data.table::fwrite(chk$cmp, file.path(s$out_dir, sprintf("LANDIS_regeneration_check_%s.csv", stamp)))
+    chk_figures_zip(chk, normalizePath(file.path(s$out_dir, sprintf("LANDIS_run_check_figures_%s.zip", stamp)), mustWork = FALSE))
+  }
   data.table::fwrite(lai$plots, file.path(s$out_dir, sprintf("plot_LAI_%s.csv", stamp)))
   yaml::write_yaml(s, file.path(s$out_dir, sprintf("config_used_%s.yml", stamp)))
   .write_reports(list(settings = s, species_map = map, sla_tab = sla_tab, plot_lai = lai$plots, fit = fit, final = final,
