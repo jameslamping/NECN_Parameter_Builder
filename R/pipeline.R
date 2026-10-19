@@ -10,7 +10,7 @@ default_settings <- function() list(
   choices_file = NULL, mode = "current_code", rescale_f = 0.47, out_dir = "output",
   light_fit = FALSE, light_scale = NULL, age_dir = "", seed_source = "plot", seed_min_dia = 5, seed_radius_km = 5,
   light_min_pres = 20, light_normalize = TRUE, light_bare = "lai05", light_choices_file = NULL,
-  check_run_dir = NULL, check_mode = NULL, check_regen_age = 20, check_every = 5, check_buffer_km = 25, check_window = NULL,
+  check_run_dir = NULL, check_mode = NULL, check_regen_age = 20, check_every = 5, check_buffer_km = 25, check_window = NULL, check_only = FALSE,
   ic_build = FALSE, ic_template = "", treemap_raster = "", treemap_table = NULL, ic_species_file = "",
   ic_resample = "near", ic_codes = "tm_id", ic_empty_code = 1, ic_min_biomass = 1, ic_only = FALSE, report_pdf = TRUE
 )
@@ -23,10 +23,33 @@ default_settings <- function() list(
                                      error = function(e) say("PDF report skipped: ", conditionMessage(e)))
 }
 
+# Step 8 without the app: compare a finished LANDIS run with FIA plots around it
+.run_check <- function(s, fia, plots, map, sp_tab, ref, say) {
+  if (is.null(s$check_run_dir) || !nzchar(s$check_run_dir)) return(NULL)
+  say("Checking LANDIS run ", s$check_run_dir, " ...")
+  run <- read_landis_run(s$check_run_dir)
+  lr <- landis_regen(run, unique(c(0, seq(0, max(run$community_years), by = s$check_every), max(run$community_years))), s$check_regen_age)
+  tb <- data.table::fread(run$species_table)
+  rpars <- tb[, .(LandisName = SpeciesCode, MaximumLAI = as.numeric(MaximumLAI), KLAI = as.numeric(KLAI), MinLAI = if ("MinLAI" %in% names(tb)) as.numeric(MinLAI) else 0.1)]
+  fr <- fia_regen(fia, plots, landscape_outline(run), s$check_buffer_km, map, fit_age_models(fia$TREE[STATUSCD == 1], ref),
+                  read_lu_ages(s$age_dir, s$states), s$check_regen_age, sp_tab, rpars, if (is.null(s$check_mode)) s$mode else s$check_mode)
+  win <- if (is.null(s$check_window)) c(s$check_regen_age + 1, max(run$community_years)) else unlist(s$check_window)
+  chk <- list(run = run, lr = lr, fr = fr, cmp = compare_regen(lr, fr, win), cohorts = cohort_biomass_by_age(lr, fr, win), rl = read_reproduction_log(run, lr$n_forest), window = win)
+  if (!is.null(n <- fia_age_note(fr))) warning(n, call. = FALSE)
+  say(sprintf("  %d forested cells, %d FIA plots within %s km", lr$n_forest, fr$n_plots, s$check_buffer_km))
+  chk
+}
+
+.write_check <- function(chk, s, stamp) {
+  data.table::fwrite(chk$cmp, file.path(s$out_dir, sprintf("LANDIS_regeneration_check_%s.csv", stamp)))
+  chk_figures_zip(chk, normalizePath(file.path(s$out_dir, sprintf("LANDIS_run_check_figures_%s.zip", stamp)), mustWork = FALSE))
+}
+
 run_builder <- function(config, verbose = TRUE) {
   s <- utils::modifyList(default_settings(), if (is.character(config)) yaml::read_yaml(config) else config)
   if (!s$mode %in% c("stand_level", "current_code")) stop("mode must be stand_level (NECN with stand-level site LAI) or current_code (NECN 8.3 and earlier)")
   say <- function(...) if (verbose) message(...)
+  if (isTRUE(s$check_only) && !nzchar(s$species_file) && !is.null(s$check_run_dir)) s$species_file <- read_landis_run(s$check_run_dir)$species_table
   ref <- load_ref_species(); sref <- load_sla_reference()
 
   if (isTRUE(s$download)) { say("Downloading FIA ..."); fia_download(s$states, s$fia_dir, s$download_method) }
@@ -67,6 +90,16 @@ run_builder <- function(config, verbose = TRUE) {
   say("Plot LAI ...")
   lai <- compute_plot_lai(fia, plots, sla_tab)
   sp_tab <- species_plot_table(lai, map)
+  if (isTRUE(s$check_only)) {                 # compare a LANDIS run with FIA only; no fitting
+    chk <- .run_check(s, fia, plots, map, sp_tab, ref, say)
+    if (is.null(chk)) stop("check_only needs check_run_dir")
+    dir.create(s$out_dir, showWarnings = FALSE, recursive = TRUE)
+    stamp <- format(Sys.Date(), "%Y%m%d")
+    .write_check(chk, s, stamp)
+    .write_reports(list(settings = s, species_map = map, chk = chk, mode = s$mode), s, stamp, say)
+    say("Done: ", normalizePath(s$out_dir))
+    return(invisible(list(chk = chk, species_map = map)))
+  }
   say("Fitting MaximumLAI and KLAI ...")
   fit <- fit_lai_params(sp_tab, species_groups(map), s$dom_min, s$share_min, s$plateau_top, s$plateau_q,
                         s$max_cap, s$min_n, s$nboot, s$n0, s$seed)
@@ -104,30 +137,14 @@ run_builder <- function(config, verbose = TRUE) {
   say(sprintf("Check vs FIA (stand-level site LAI): %d plots, R2 %.2f, median NECN/observed %.2f", check$stats$plots, check$stats$r2, check$stats$median_ratio))
   out <- build_necn_table(necn, final, s$mode, s$rescale_f, light = lfinal)
 
-  chk <- NULL
-  if (!is.null(s$check_run_dir) && nzchar(s$check_run_dir)) {
-    say("Checking LANDIS run ", s$check_run_dir, " ...")
-    run <- read_landis_run(s$check_run_dir)
-    lr <- landis_regen(run, unique(c(0, seq(0, max(run$community_years), by = s$check_every), max(run$community_years))), s$check_regen_age)
-    tb <- data.table::fread(run$species_table)
-    rpars <- tb[, .(LandisName = SpeciesCode, MaximumLAI = as.numeric(MaximumLAI), KLAI = as.numeric(KLAI), MinLAI = if ("MinLAI" %in% names(tb)) as.numeric(MinLAI) else 0.1)]
-    fr <- fia_regen(fia, plots, landscape_outline(run), s$check_buffer_km, map, fit_age_models(fia$TREE[STATUSCD == 1], ref),
-                    read_lu_ages(s$age_dir, s$states), s$check_regen_age, sp_tab, rpars, if (is.null(s$check_mode)) s$mode else s$check_mode)
-    win <- if (is.null(s$check_window)) c(s$check_regen_age + 1, max(run$community_years)) else unlist(s$check_window)
-    chk <- list(run = run, lr = lr, fr = fr, cmp = compare_regen(lr, fr, win), cohorts = cohort_biomass_by_age(lr, fr, win), rl = read_reproduction_log(run, lr$n_forest), window = win)
-    if (!is.null(n <- fia_age_note(fr))) warning(n, call. = FALSE)
-    say(sprintf("  %d forested cells, %d FIA plots within %s km", lr$n_forest, fr$n_plots, s$check_buffer_km))
-  }
+  chk <- .run_check(s, fia, plots, map, sp_tab, ref, say)
 
   dir.create(s$out_dir, showWarnings = FALSE, recursive = TRUE)
   stamp <- format(Sys.Date(), "%Y%m%d")
   data.table::fwrite(out, file.path(s$out_dir, sprintf("NECN_species_%s_%s.csv", s$mode, stamp)))
   data.table::fwrite(final, file.path(s$out_dir, sprintf("LAI_parameters_%s.csv", stamp)))
   if (!is.null(lfinal)) data.table::fwrite(lfinal, file.path(s$out_dir, sprintf("light_curves_%s.csv", stamp)))
-  if (!is.null(chk)) {
-    data.table::fwrite(chk$cmp, file.path(s$out_dir, sprintf("LANDIS_regeneration_check_%s.csv", stamp)))
-    chk_figures_zip(chk, normalizePath(file.path(s$out_dir, sprintf("LANDIS_run_check_figures_%s.zip", stamp)), mustWork = FALSE))
-  }
+  if (!is.null(chk)) .write_check(chk, s, stamp)
   data.table::fwrite(lai$plots, file.path(s$out_dir, sprintf("plot_LAI_%s.csv", stamp)))
   yaml::write_yaml(s, file.path(s$out_dir, sprintf("config_used_%s.yml", stamp)))
   .write_reports(list(settings = s, species_map = map, sla_tab = sla_tab, plot_lai = lai$plots, fit = fit, final = final,

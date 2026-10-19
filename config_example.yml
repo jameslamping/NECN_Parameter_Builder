@@ -67,3 +67,4 @@ check_regen_age: 20      # regeneration = cohorts / trees up to this age
 check_every: 5           # read every N years of the run
 check_buffer_km: 25      # FIA plots within this distance of the landscape
 check_window: null       # [first, last] LANDIS years to compare (null = regen_age + 1 to the end)
+check_only: false        # true: only compare the LANDIS run with FIA (no MaximumLAI / KLAI / light fitting; necn_table not needed)
