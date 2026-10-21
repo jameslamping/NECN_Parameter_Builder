@@ -72,7 +72,7 @@ Your NECN has the change if its `CohortBiomass.cs` contains `SiteLAIContribution
      - regeneration rate by site LAI: the run's LAI maps against the site LAI the run's species table gives on FIA plots, which tests the light curves;
      - site LAI across the landscape through time;
      - the reproduction log by type (seed, resprout, serotiny).
-   - **Needs** Output Biomass Community files (`community-input-file-{t}.csv`) and `output-community-0.tif`. In a script run, set `check_run_dir` in the config.
+   - **Needs** Output Biomass Community files (`community-input-file-{t}.csv`) and `output-community-0.tif`. In a script run, set `check_run_dir` in the config; add `check_only: true` to compare the run with FIA without refitting (no `necn_table` needed; the species list is read from the run).
 
 ## Run
 
