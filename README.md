@@ -13,7 +13,7 @@ On the Start tab (or `mode:` in the config), choose the NECN you run. The choice
 | `stand_level` | NECN with the October 2026 stand-level change | each cohort adds `MaximumLAI × C_cohort / (KLAI + C_site)` | values as fitted |
 | `current_code` | NECN 8.3 and earlier | sum of every cohort's own LAI curve | adds the growth-neutral rescale |
 
-Your NECN has the change if its `CohortBiomass.cs` contains `SiteLAIContribution`.
+Your NECN has the change if its `CohortBiomass.cs` contains `SiteLAIContribution`. Until it is merged into the LANDIS-II Foundation's NECN, a compiled NECN v8.3.1 with the change is in the [v8.3.1-stand-level-lai release](https://github.com/jameslamping/Extension-NECN-Succession/releases/tag/v8.3.1-stand-level-lai) (source: branch `stand-level-lai` of [jameslamping/Extension-NECN-Succession](https://github.com/jameslamping/Extension-NECN-Succession/tree/stand-level-lai)); it replaces `Landis.Extension.Succession.NECN-v8.dll`.
 
 ## What it does
 
