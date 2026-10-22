@@ -2,10 +2,10 @@
 # and the site LAI NECN would compute for those cohorts. Shared by the establishment (LightLAI) step
 # and the initial-communities builder.
 #
-# Ages: Lu et al. (2025, Forest Ecology and Management 122603) tree ages by tree CN where a folder of
-# <ST>_TREEAGE.csv files is given; otherwise a per-species linear model TOTAGE ~ DIA + HT fitted on FIA
-# trees with a recorded total age (DIA only when HT is missing; a softwood/hardwood model for species
-# with too few aged trees).
+# Ages, in priority order: FIA TOTAGE (measured, capped at the species 99th percentile); Lu et al. (2025,
+# Forest Ecology and Management 122603) tree ages by tree CN from a folder of <ST>_TREEAGE.csv files (capped at the
+# species 90th percentile); otherwise a per-species linear model through the origin, TOTAGE ~ DIA + HT + 0
+# (DIA + 0 only when HT is missing; a softwood/hardwood model for species with too few aged trees).
 
 #' Lu et al. tree ages from a folder of <ST>_TREEAGE.csv files (columns CN, Tree_Age)
 read_lu_ages <- function(dir, states = NULL) {
@@ -17,36 +17,73 @@ read_lu_ages <- function(dir, states = NULL) {
   a[!is.na(Tree_Age) & Tree_Age > 0][!duplicated(CN)]
 }
 
-#' Per-species age models: TOTAGE ~ DIA + HT and TOTAGE ~ DIA; species with fewer than `min_n`
-#' aged trees use the softwood or hardwood model
-fit_age_models <- function(tree, ref, min_n = 30) {
+#' Per-species age caps used to screen out implausibly old observed/Lu ages:
+#'   totage_p99 = 99th percentile of FIA TOTAGE by species; lu_p90 = 90th percentile of Lu et al. Tree_Age by species
+age_caps <- function(tree, lu = NULL) {
+  tot <- tree[!is.na(TOTAGE) & TOTAGE > 0, .(totage_p99 = as.numeric(stats::quantile(TOTAGE, 0.99))), by = SPCD]
+  lu90 <- NULL
+  if (!is.null(lu)) {
+    x <- lu[tree[, .(CN, SPCD)], on = "CN", nomatch = NULL]
+    lu90 <- x[!is.na(Tree_Age), .(lu_p90 = as.numeric(stats::quantile(Tree_Age, 0.90))), by = SPCD]
+  }
+  list(totage = tot, lu = lu90)
+}
+
+#' Per-species age models forced through the origin: TOTAGE ~ DIA + HT + 0 (and TOTAGE ~ DIA + 0 for trees
+#' without HT). Trained on trees with TOTAGE at or below the 99th percentile of all TOTAGE. Species with fewer
+#' than `min_n` aged trees use the softwood or hardwood model. Pass `lu` (the Lu et al. table from
+#' read_lu_ages) so the Lu p90 cap is computed on the full FIA tree table rather than on a plot subset.
+fit_age_models <- function(tree, ref, min_n = 30, lu = NULL) {
   d <- tree[!is.na(TOTAGE) & TOTAGE > 0 & !is.na(DIA) & DIA > 0, .(SPCD, TOTAGE, DIA, HT)]
   if (!nrow(d)) stop("No FIA trees with a recorded total age (TOTAGE); give a folder of Lu et al. tree ages instead.")
+  d <- d[TOTAGE <= stats::quantile(tree$TOTAGE[tree$TOTAGE > 0], 0.99, na.rm = TRUE)]
   d[, sw := data.table::fifelse(ref$SFTWD_HRDWD[match(SPCD, ref$SPCD)] %in% "H", "H", "S")]
   fit2 <- function(x) {
     h <- x[!is.na(HT) & HT > 0]
-    list(dh = if (nrow(h) >= 10) stats::coef(stats::lm(TOTAGE ~ DIA + HT, h)) else NULL,
-         d = stats::coef(stats::lm(TOTAGE ~ DIA, x)), n = nrow(x))
+    list(dh = if (nrow(h) >= 10) stats::coef(stats::lm(TOTAGE ~ DIA + HT + 0, h)) else NULL,
+         d = stats::coef(stats::lm(TOTAGE ~ DIA + 0, x)), n = nrow(x))
   }
   sp <- d[, .N, by = SPCD][N >= min_n, SPCD]
   list(species = stats::setNames(lapply(sp, function(s) fit2(d[SPCD == s])), sp),
        group = list(S = fit2(d[sw == "S"]), H = if (d[sw == "H", .N] >= 10) fit2(d[sw == "H"]) else fit2(d[sw == "S"])),
-       ref = ref[, .(SPCD, SFTWD_HRDWD)])
+       ref = ref[, .(SPCD, SFTWD_HRDWD)],
+       caps = age_caps(tree, lu))
 }
 
 .predict_age <- function(m, DIA, HT) {
   out <- rep(NA_real_, length(DIA))
-  if (!is.null(m$dh)) { i <- !is.na(HT) & HT > 0; out[i] <- m$dh[1] + m$dh[2] * DIA[i] + m$dh[3] * HT[i] }
-  j <- is.na(out); out[j] <- m$d[1] + m$d[2] * DIA[j]
+  if (!is.null(m$dh)) { i <- !is.na(HT) & HT > 0; out[i] <- m$dh[1] * DIA[i] + m$dh[2] * HT[i] }
+  j <- is.na(out); out[j] <- m$d[1] * DIA[j]
   out
 }
 
-#' Age for every tree: Lu et al. age where available, else the age model
-#' @return tree with columns age (years, >= 1) and age_src ("Lu et al.", "species model", "group model")
+#' Age for every tree, in priority order:
+#'   1. FIA TOTAGE (measured), if <= that species' 99th percentile of TOTAGE
+#'   2. Lu et al. age, if <= that species' 90th percentile of Lu ages
+#'   3. the age model (species model, else softwood/hardwood group model)
+#' Values failing a cap fall through to the next source.
+#' @return tree with columns age (years, >= 1) and age_src ("FIA TOTAGE", "Lu et al.", "species model", "group model")
 assign_tree_ages <- function(tree, models, lu = NULL) {
   t <- data.table::copy(tree)
-  t[, `:=`(age = NA_real_, age_src = NA_character_)]
-  if (!is.null(lu)) { t[lu, on = "CN", `:=`(age = as.numeric(i.Tree_Age), age_src = "Lu et al.")] }
+  t[, `:=`(age = NA_real_, age_src = NA_character_, .cap_tot = NA_real_, .lu_age = NA_real_, .cap_lu = NA_real_)]
+  caps <- models$caps
+  if (!is.null(lu) && is.null(caps$lu))
+    warning("Lu ages supplied but models have no Lu p90 cap; refit with fit_age_models(..., lu = lu). Lu ages are used uncapped.")
+
+  # 1. measured FIA age
+  if (!is.null(caps$totage)) t[caps$totage, on = "SPCD", .cap_tot := i.totage_p99]
+  t[!is.na(TOTAGE) & TOTAGE > 0 & !is.na(.cap_tot) & TOTAGE <= .cap_tot,
+    `:=`(age = as.numeric(TOTAGE), age_src = "FIA TOTAGE")]
+
+  # 2. Lu et al.
+  if (!is.null(lu)) {
+    t[lu, on = "CN", .lu_age := as.numeric(i.Tree_Age)]
+    if (!is.null(caps$lu)) t[caps$lu, on = "SPCD", .cap_lu := i.lu_p90]
+    t[is.na(age) & !is.na(.lu_age) & (is.na(.cap_lu) | .lu_age <= .cap_lu),
+      `:=`(age = .lu_age, age_src = "Lu et al.")]
+  }
+
+  # 3. model for everything still without an age
   todo <- t[is.na(age), unique(SPCD)]
   for (s in todo) {
     i <- which(t$SPCD == s & is.na(t$age))
@@ -56,6 +93,7 @@ assign_tree_ages <- function(tree, models, lu = NULL) {
     data.table::set(t, i, "age_src", src)
   }
   t[!is.finite(age) | age < 1, age := 1]
+  t[, c(".cap_tot", ".lu_age", ".cap_lu") := NULL]
   t[]
 }
 
