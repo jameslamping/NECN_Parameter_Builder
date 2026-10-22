@@ -141,7 +141,7 @@ ui <- page_navbar(
           help_text("Follows your NECN choice on the Start tab: the curve must be fitted on the LAI scale your NECN evaluates it on. Stand-level LAI comes straight from each plot's wood by species with your step-4 MaximumLAI and KLAI. The 8.3 cohort sum rebuilds each plot's cohorts (species x 10-year age class); the export's rescale then moves the curves with everything else."),
           conditionalPanel("input.lc_scale == 'current_code'",
             textInput("age_dir", "Lu et al. (2025) tree ages folder (optional, <ST>_TREEAGE.csv)", ""),
-            help_text("Without it, tree ages come from per-species models TOTAGE ~ DIA + HT fitted to FIA trees with a recorded age.")),
+            help_text("Ages use FIA measured age (TOTAGE) first, then Lu et al. if a folder is given, then per-species models TOTAGE ~ DIA + HT + 0 fitted to FIA trees with a recorded age.")),
           radioButtons("seed_how", "Seed source", choices = c(
             "a live tree of the species on the plot" = "plot",
             "the species on any plot within a distance" = "radius",
@@ -514,7 +514,7 @@ server <- function(input, output, session) {
   output$age_fig <- renderPlot(fig_species_age(rv$fit))
 
   # ---- tree ages (steps 5 and 7) ----
-  age_models <- reactive({ req(rv$fia); fit_age_models(rv$fia$TREE[STATUSCD == 1], REF) })
+  age_models <- reactive({ req(rv$fia); fit_age_models(rv$fia$TREE[STATUSCD == 1], REF, lu = lu_ages()) })
   lu_ages <- reactive({ req(rv$fia); read_lu_ages(input$age_dir, input$states) })
   observeEvent(input$age_dir, if (!identical(input$age_dir, input$ic_age_dir)) updateTextInput(session, "ic_age_dir", value = input$age_dir))
   observeEvent(input$ic_age_dir, if (!identical(input$age_dir, input$ic_age_dir)) updateTextInput(session, "age_dir", value = input$ic_age_dir))
