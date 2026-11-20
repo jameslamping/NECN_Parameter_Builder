@@ -31,7 +31,7 @@ default_settings <- function() list(
   lr <- landis_regen(run, unique(c(0, seq(0, max(run$community_years), by = s$check_every), max(run$community_years))), s$check_regen_age)
   tb <- data.table::fread(run$species_table)
   rpars <- tb[, .(LandisName = SpeciesCode, MaximumLAI = as.numeric(MaximumLAI), KLAI = as.numeric(KLAI), MinLAI = if ("MinLAI" %in% names(tb)) as.numeric(MinLAI) else 0.1)]
-  fr <- fia_regen(fia, plots, landscape_outline(run), s$check_buffer_km, map, fit_age_models(fia$TREE[STATUSCD == 1], ref),
+  fr <- fia_regen(fia, plots, landscape_outline(run), s$check_buffer_km, map, fit_age_models(fia$TREE[STATUSCD == 1], ref, lu = read_lu_ages(s$age_dir, s$states)),
                   read_lu_ages(s$age_dir, s$states), s$check_regen_age, sp_tab, rpars, if (is.null(s$check_mode)) s$mode else s$check_mode)
   win <- if (is.null(s$check_window)) c(s$check_regen_age + 1, max(run$community_years)) else unlist(s$check_window)
   chk <- list(run = run, lr = lr, fr = fr, cmp = compare_regen(lr, fr, win), cohorts = cohort_biomass_by_age(lr, fr, win), rl = read_reproduction_log(run, lr$n_forest), window = win)
@@ -73,7 +73,7 @@ run_builder <- function(config, verbose = TRUE) {
   ic <- NULL
   if (isTRUE(s$ic_build)) {
     say("Initial communities from TreeMap ...")
-    ic <- build_ic(s$ic_template, s$treemap_raster, fia, map, fit_age_models(fia$TREE[STATUSCD == 1], ref), read_lu_ages(s$age_dir, s$states),
+    ic <- build_ic(s$ic_template, s$treemap_raster, fia, map,   fit_age_models(fia$TREE[STATUSCD == 1], ref, lu = read_lu_ages(s$age_dir, s$states)), read_lu_ages(s$age_dir, s$states),
                    treemap_table = s$treemap_table, longevity = read_longevity(s$ic_species_file), resample = s$ic_resample,
                    codes = s$ic_codes, empty_code = as.integer(s$ic_empty_code), min_biomass = s$ic_min_biomass)
     f <- write_ic(ic, s$out_dir, paste0("IC_", format(Sys.Date(), "%Y%m%d")))
@@ -117,7 +117,7 @@ run_builder <- function(config, verbose = TRUE) {
       xt <- merge(xt[, .(PLT_CN)], stand_site_lai(sp_tab, final[, .(LandisName, MaximumLAI, KLAI)])[, .(PLT_CN, x = LAI_necn)], by = "PLT_CN", all.x = TRUE)
       xt[is.na(x), x := 0]
     } else if (scale == "current_code") {
-      co <- plot_cohorts(fia, lai$plots$PLT_CN, map, fit_age_models(fia$TREE[STATUSCD == 1], ref), read_lu_ages(s$age_dir, s$states))
+      co <- plot_cohorts(fia, lai$plots$PLT_CN, map, fit_age_models(fia$TREE[STATUSCD == 1], ref, lu = read_lu_ages(s$age_dir, s$states)), read_lu_ages(s$age_dir, s$states))
       minlai <- if ("MinLAI" %in% names(necn)) as.numeric(necn$MinLAI) else rep(0.1, nrow(necn))
       pars <- merge(final[, .(LandisName, MaximumLAI, KLAI)], data.table::data.table(LandisName = necn$SpeciesCode, MinLAI = minlai), by = "LandisName")
       xt <- merge(xt[, .(PLT_CN)], necn_site_lai(co, pars, scale)[, .(PLT_CN, x = LAI_necn)], by = "PLT_CN", all.x = TRUE)

@@ -9,7 +9,7 @@
 #   3. TM_ID -> FIA PLT_CN from the raster's attribute table (or the TreeMap tree table). Live trees
 #      (STATUSCD 1) of the LANDIS species on that plot become cohorts: species x 10-year age class,
 #      leaf = DRYBIO_FOLIAGE, wood = DRYBIO_AG (stem, bark, branches), both x TPA_UNADJ, in g/m2.
-#      Ages: Lu et al. (2025) where available, else per-species TOTAGE ~ DIA + HT (see cohorts.R).
+#     #      Ages: FIA TOTAGE, then Lu et al. (2025), then per-species TOTAGE ~ DIA + HT + 0 (see cohorts.R).
 #      Ages are capped below species longevity when a LANDIS species file is given.
 
 TONAC_TO_GM2 <- 224.1702   # short tons/acre -> g/m2
